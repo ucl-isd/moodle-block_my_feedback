@@ -1,0 +1,19 @@
+
+{{#feedback}}
+<div class="media position-relative mb-3">
+    <img class="mr-3 rounded-circle align-self-center" style="height:3em; width: 3em;" src="{{iconurl}}" alt="">
+    <div class="media-body">
+        <small>{{coursename}}</small>
+        <h6 class='mb-0'><a href="#" class="stretched-link">{{activityname}}</a></h6>
+        <small>From: <strong>{{tutorname}}</strong> · {{date}}</small>
+    </div>
+</div>
+{{/feedback}}
+
+{{#nofeedback}}
+<p>{{#str}} norecentfeedback, block_my_feedback {{/str}}</p>
+{{/nofeedback}}
+
+<a href="{{{allfeedbackurl}}}"><i class="fa fa-arrow-right mr-2" aria-hidden="true"></i>
+{{#str}} viewallfeedback, block_my_feedback {{/str}}
+</a>
