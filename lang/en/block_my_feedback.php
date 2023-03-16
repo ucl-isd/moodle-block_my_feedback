@@ -23,8 +23,6 @@
  */
 
 $string['pluginname'] = 'My feedback';
-$string['pluginname:addinstance'] = 'Add a new My feedback block';
-$string['pluginname:myaddinstance'] = 'Add a new My feedback block to the My Moodle page';
 
 $string['feedbackfor'] = 'Feedback for';
 $string['norecentfeedback'] = 'No recent feedback';
