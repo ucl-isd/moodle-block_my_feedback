@@ -18,7 +18,7 @@
  * Languages configuration for the block_my_feedback plugin.
  *
  * @package   block_my_feedback
- * @copyright Year, You Name <your@email.address>
+ * @copyright 2023 Stuart Lamour
  * @license   http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 

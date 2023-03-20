@@ -18,7 +18,7 @@
  * Block definition class for the block_my_feedback plugin.
  *
  * @package   block_my_feedback
- * @copyright Year, You Name <your@email.address>
+ * @copyright 2023 Stuart Lamour
  * @license   http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
@@ -70,8 +70,7 @@ class block_my_feedback extends block_base {
         global $CFG, $DB, $USER, $OUTPUT, $PAGE;
         // Return users 5 most recent feedbacks.
         // Limit to last 3 months.
-        // Loop through feedbacks and add to template.
-        $since = time() - (672 * 3600); // TODO - make easier to understand.
+        $since = time() - (2160 * 3600); // 2160 = 90 days from today as hours.
 
         // Query altered from assign messaging system.
         $sql = "SELECT g.id as gradeid, a.course, a.name, a.blindmarking, a.revealidentities, a.hidegrader, a.grade as maxgrade,
@@ -117,7 +116,7 @@ class block_my_feedback extends block_base {
            
             // Marker.
             if ($f->blindmarking) {
-               // Blind marking, so use course image.
+                // Blind marking, so use course image.
                 // Course image
                 $course = new \core_course_list_element($course);
                 foreach ($course->get_course_overviewfiles() as $file) {
