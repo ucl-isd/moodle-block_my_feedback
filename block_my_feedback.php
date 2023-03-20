@@ -50,14 +50,12 @@ class block_my_feedback extends block_base {
         $this->content->footer = '';
 
         $template = new stdClass();
-        $template->hello = 'hello world';
         // TODO - real url here please.
         $template->allfeedbackurl = new moodle_url('/course/view.php');
         $template->feedback = $this->fetch_feedback();
         if (!$template->feedback) {
             $template->nofeedback = true;
         }
-        // TODO - empty state.
         $this->content->text = $OUTPUT->render_from_template('block_my_feedback/content', $template);
 
         return $this->content;
@@ -68,33 +66,87 @@ class block_my_feedback extends block_base {
      * 
      * @return array feedback items.
      */
-    public function fetch_feedback(): array {
-        // TODO - Return users 5 most recent feedbacks.
+    public function fetch_feedback() : array {
+        global $CFG, $DB, $USER, $OUTPUT, $PAGE;
+        // Return users 5 most recent feedbacks.
         // Limit to last 3 months.
         // Loop through feedbacks and add to template.
-        $template = new stdClass();
-        $template->feedback = array();
-        $feedbacks = array();
-        for ($x = 0; $x <= 5; $x++) {
+        $since = time() - (672 * 3600); // TODO - make easier to understand.
+
+        // Query altered from assign messaging system.
+        $sql = "SELECT g.id as gradeid, a.course, a.name, a.blindmarking, a.revealidentities, a.hidegrader, a.grade as maxgrade,
+                       g.*, g.timemodified as lastmodified, cm.id as cmid, um.id as recordid
+                 FROM {assign} a
+                 JOIN {assign_grades} g ON g.assignment = a.id
+            LEFT JOIN {assign_user_flags} uf ON uf.assignment = a.id AND uf.userid = g.userid
+                 JOIN {course_modules} cm ON cm.course = a.course AND cm.instance = a.id
+                 JOIN {modules} md ON md.id = cm.module AND md.name = 'assign'
+                 JOIN {grade_items} gri ON gri.iteminstance = a.id AND gri.courseid = a.course AND gri.itemmodule = md.name
+            LEFT JOIN {assign_user_mapping} um ON g.id = um.userid AND um.assignment = a.id
+                 WHERE (a.markingworkflow = 0 OR (a.markingworkflow = 1 AND uf.workflowstate = :wfreleased)) AND
+                       g.grader > 0 AND gri.hidden = 0 AND g.userid = :userid AND
+                       g.timemodified >= :since AND g.timemodified <= :today
+              ORDER BY g.timemodified
+                 LIMIT 5";
+
+        $params = array(
+            'since' => $since,
+            'today' => time(),
+            'wfreleased' => 'released',
+            'userid' => $USER->id,
+        );
+        $submissions = $DB->get_records_sql($sql, $params);
         
-        // foreach ($feedbacks as $f) {
-            $feedback = new stdClass();
-            /*
-            $feedback->date = $f->date;
-            $feedback->tutorname = $f->tutorname;
-            $feedback->iconurl = $f->iconurl;
-            $feedback->coursename = $f->coursename;
-            $feedback->activityname = $f->activityname;
-            */
-            // Dummy data.
-            $feedback->date = "24th March";
-            $feedback->tutorname = "Stuart Lamour";
-            $feedback->iconurl = "https://randomuser.me/api/portraits/women/16.jpg";
-            $feedback->coursename = "Course name";
-            $feedback->activityname = "Activity name";
-            $template->feedback[] = $feedback;
+        // No feedback.
+        if (!$submissions) {
+            return array();
         }
-        return  $template->feedback;
+        
+        // Template data for mustache.
+        $template = new stdClass();
+        foreach ($submissions as $f) {
+            $feedback = new stdClass();
+            $feedback->id = $f->gradeid;
+            $feedback->date = date('jS F', $f->lastmodified);
+            $feedback->activityname = $f->name;
+            $feedback->link = new moodle_url('/mod/assign/view.php', ['id' => $f->cmid]);
+           
+            // Course.
+            $course = $DB->get_record('course', array('id'=>$f->course));
+            $feedback->coursename = $course->fullname;
+           
+            // Marker.
+            if ($f->blindmarking) {
+               // Blind marking, so use course image.
+                // Course image
+                $course = new \core_course_list_element($course);
+                foreach ($course->get_course_overviewfiles() as $file) {
+                    $feedback->tutoricon = file_encode_url("$CFG->wwwroot/pluginfile.php", '/' . $file->get_contextid() . '/' . $file->get_component() . '/' . $file->get_filearea() . $file->get_filepath() . $file->get_filename());
+                }
+            }
+            else {
+                // Marker details.
+                $user = $DB->get_record('user', array('id'=>$f->grader));
+                $userpicture = new user_picture($user);
+                $userpicture->size = 100;
+                $icon = $userpicture->get_url($PAGE)->out(false);
+                $feedback->tutorname = $user->firstname.' '.$user->lastname;
+                $feedback->tutoricon = $icon;
+            }
+            
+            // Grade.
+            $feedback->maxgrade = $f->maxgrade;
+            $feedback->grade = round($f->grade, 0); // Remove decimal places.
+            // TODO - no grade?
+
+            // Comments.
+            $comment = $DB->get_record('assignfeedback_comments', array('grade'=>$f->gradeid));
+            $feedback->comment = $comment->commenttext;
+            // TODO - no comments?
+
+            $template->feedback[] = $feedback; 
+        }
+        return  $template->feedback; 
     }
 
     /**
