@@ -56,6 +56,7 @@ class block_my_feedback extends block_base {
         if (!$template->feedback) {
             $template->nofeedback = true;
         }
+        
         $this->content->text = $OUTPUT->render_from_template('block_my_feedback/content', $template);
 
         return $this->content;
@@ -70,9 +71,11 @@ class block_my_feedback extends block_base {
         global $CFG, $DB, $USER, $OUTPUT, $PAGE;
         // Return users 5 most recent feedbacks.
         // Limit to last 3 months.
+
         $since = time() - (2160 * 3600); // 2160 = 90 days from today as hours.
 
         // Query altered from assign messaging system.
+        // TODO - Can probably be optimised.
         $sql = "SELECT g.id as gradeid, a.course, a.name, a.blindmarking, a.revealidentities, a.hidegrader, a.grade as maxgrade,
                        g.*, g.timemodified as lastmodified, cm.id as cmid, um.id as recordid
                  FROM {assign} a
@@ -115,8 +118,8 @@ class block_my_feedback extends block_base {
             $feedback->coursename = $course->fullname;
            
             // Marker.
-            if ($f->blindmarking) {
-                // Blind marking, so use course image.
+            if ($f->hidegrader) {
+                // Hide grader, so use course image.
                 // Course image
                 $course = new \core_course_list_element($course);
                 foreach ($course->get_course_overviewfiles() as $file) {
@@ -132,16 +135,6 @@ class block_my_feedback extends block_base {
                 $feedback->tutorname = $user->firstname.' '.$user->lastname;
                 $feedback->tutoricon = $icon;
             }
-            
-            // Grade.
-            $feedback->maxgrade = $f->maxgrade;
-            $feedback->grade = round($f->grade, 0); // Remove decimal places.
-            // TODO - no grade?
-
-            // Comments.
-            $comment = $DB->get_record('assignfeedback_comments', array('grade'=>$f->gradeid));
-            $feedback->comment = $comment->commenttext;
-            // TODO - no comments?
 
             $template->feedback[] = $feedback; 
         }

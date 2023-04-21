@@ -1,6 +1,6 @@
 
 {{#feedback}}
-<div class="shadow-pink mb-3 p-3">
+<div class="mb-2">
     <div class="media">
 
         <div class="mr-3 bg-cover rounded-circle d-inline-block" style="background-image: url('{{{tutoricon}}}'); height:3em; width: 3em;"></div>
@@ -8,29 +8,13 @@
         <div class="media-body">
             <small>{{coursename}}</small>
             <h6><a href="{{{link}}}" class="">{{activityname}}</a></h6>
-            <div class="d-flex">
-
-                <div>
-                    <span>{{grade}}</span> <small>/ {{maxgrade}}</small>
-                </div>
-
-                <div class="ml-auto">
-                    <a data-toggle="collapse" href="#fb-{{id}}" role="button" aria-expanded="false"  aria-controls="fb-{{id}}" href="#">
-                    View feedback <i class="fa fa-chevron-down" aria-hidden="true"></i>
-                    </a>
-                </div>
-            </div>
         </div>
     </div>
 
-    <div class="collapse" id="fb-{{id}}">
-        <div class="py-2">{{{comment}}}</div>
-    </div>
-
-    <div class='mt-3 text-right'>
+    <div class='text-right'>
         <small>{{tutorname}} · {{date}}</small>
     </div>
-
+    <hr>
 </div>
 {{/feedback}}
 
