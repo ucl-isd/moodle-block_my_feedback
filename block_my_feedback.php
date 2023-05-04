@@ -51,7 +51,7 @@ class block_my_feedback extends block_base {
 
         $template = new stdClass();
         // TODO - real url here please.
-        $template->allfeedbackurl = new moodle_url('/course/view.php');
+        $template->allfeedbackurl = new moodle_url('/report/myfeedback/index.php');
         $template->feedback = $this->fetch_feedback();
         if (!$template->feedback) {
             $template->nofeedback = true;
