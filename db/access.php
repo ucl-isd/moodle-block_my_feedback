@@ -22,6 +22,8 @@
  * @license   http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
+defined('MOODLE_INTERNAL') || die();
+
 $capabilities = [
     'block/my_feedback:myaddinstance' => [
         'captype' => 'write',
@@ -42,3 +44,4 @@ $capabilities = [
         'clonepermissionsfrom' => 'moodle/site:manageblocks'
     ],
 ];
+

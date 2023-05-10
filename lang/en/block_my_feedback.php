@@ -30,3 +30,4 @@ $string['feedbackfor'] = 'Feedback for';
 $string['norecentfeedback'] = 'No recent feedback';
 $string['viewallfeedback'] = 'View all your feedback';
 $string['viewfeedback'] = 'View feedback';
+

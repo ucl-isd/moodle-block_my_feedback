@@ -17,13 +17,14 @@
 /**
  * Version details
  *
- * @package    block_my_feedback
- * @copyright  2023 Stuart Lamour
- * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
+ * @package   block_my_feedback
+ * @copyright 2023 Stuart Lamour
+ * @license   http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
 defined('MOODLE_INTERNAL') || die();
 
-$plugin->version   = 2023031400;        // The current plugin version (Date: YYYYMMDDXX)
-$plugin->requires  = 2019051100;        // Requires this Moodle version
-$plugin->component = 'block_my_feedback'; // Full name of the plugin (used for diagnostics)
+$plugin->version   = 2023031400;        // The current plugin version (Date: YYYYMMDDXX).
+$plugin->requires  = 2019051100;        // Requires this Moodle version.
+$plugin->component = 'block_my_feedback'; // Full name of the plugin (used for diagnostics).
+

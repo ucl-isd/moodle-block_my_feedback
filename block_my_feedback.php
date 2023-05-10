@@ -21,15 +21,16 @@
  * @copyright 2023 Stuart Lamour
  * @license   http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
-
-class block_my_feedback extends block_base {
+class block_my_feedback extends block_base
+{
 
     /**
      * Initialises the block.
      *
      * @return void
      */
-    public function init() {
+    public function init()
+    {
         global $USER;
         $this->title = get_string('feedbackfor', 'block_my_feedback').' '.$USER->firstname;
     }
@@ -37,9 +38,10 @@ class block_my_feedback extends block_base {
     /**
      * Gets the block contents.
      *
-     * @return string The block HTML.
+     * @return stdClass The block content.
      */
-    public function get_content() {
+    public function get_content() : stdClass
+    {
         global $OUTPUT;
 
         if ($this->content !== null) {
@@ -56,19 +58,20 @@ class block_my_feedback extends block_base {
         if (!$template->feedback) {
             $template->nofeedback = true;
         }
-        
+
         $this->content->text = $OUTPUT->render_from_template('block_my_feedback/content', $template);
 
         return $this->content;
     }
 
      /**
-     *  Get my feedback call.
-     * 
-     * @return array feedback items.
-     */
-    public function fetch_feedback() : array {
-        global $CFG, $DB, $USER, $OUTPUT, $PAGE;
+      *  Get my feedback call.
+      *
+      * @return array feedback items.
+      */
+    public function fetch_feedback() : array
+    {
+        global $CFG, $DB, $USER, $OUTPUT;
         // Return users 5 most recent feedbacks.
         // Limit to last 3 months.
 
@@ -98,12 +101,12 @@ class block_my_feedback extends block_base {
             'userid' => $USER->id,
         );
         $submissions = $DB->get_records_sql($sql, $params);
-        
+
         // No feedback.
         if (!$submissions) {
             return array();
         }
-        
+
         // Template data for mustache.
         $template = new stdClass();
         foreach ($submissions as $f) {
@@ -112,33 +115,34 @@ class block_my_feedback extends block_base {
             $feedback->date = date('jS F', $f->lastmodified);
             $feedback->activityname = $f->name;
             $feedback->link = new moodle_url('/mod/assign/view.php', ['id' => $f->cmid]);
-           
+
             // Course.
-            $course = $DB->get_record('course', array('id'=>$f->course));
+            $course = $DB->get_record('course', array('id' => $f->course));
             $feedback->coursename = $course->fullname;
-           
+
             // Marker.
             if ($f->hidegrader) {
                 // Hide grader, so use course image.
-                // Course image
+                // Course image.
                 $course = new \core_course_list_element($course);
                 foreach ($course->get_course_overviewfiles() as $file) {
                     $feedback->tutoricon = file_encode_url("$CFG->wwwroot/pluginfile.php", '/' . $file->get_contextid() . '/' . $file->get_component() . '/' . $file->get_filearea() . $file->get_filepath() . $file->get_filename());
                 }
             }
+
             else {
                 // Marker details.
-                $user = $DB->get_record('user', array('id'=>$f->grader));
+                $user = $DB->get_record('user', array('id' => $f->grader));
                 $userpicture = new user_picture($user);
                 $userpicture->size = 100;
-                $icon = $userpicture->get_url($PAGE)->out(false);
+                $icon = $userpicture->get_url($this->page)->out(false);
                 $feedback->tutorname = $user->firstname.' '.$user->lastname;
                 $feedback->tutoricon = $icon;
             }
 
-            $template->feedback[] = $feedback; 
+            $template->feedback[] = $feedback;
         }
-        return  $template->feedback; 
+        return  $template->feedback;
     }
 
     /**
@@ -146,7 +150,8 @@ class block_my_feedback extends block_base {
      *
      * @return array of the pages where the block can be added.
      */
-    public function applicable_formats() {
+    public function applicable_formats()
+    {
         return [
             'admin' => false,
             'site-index' => true,
@@ -156,3 +161,4 @@ class block_my_feedback extends block_base {
         ];
     }
 }
+
