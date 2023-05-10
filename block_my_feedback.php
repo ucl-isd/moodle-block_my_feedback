@@ -122,11 +122,12 @@ class block_my_feedback extends block_base {
                 // Course image.
                 $course = new \core_course_list_element($course);
                 foreach ($course->get_course_overviewfiles() as $file) {
-                    $feedback->tutoricon = file_encode_url("$CFG->wwwroot/pluginfile.php", '/' . $file->get_contextid() . '/' . $file->get_component() . '/' . $file->get_filearea() . $file->get_filepath() . $file->get_filename());
+                    $feedback->tutoricon = file_encode_url("$CFG->wwwroot/pluginfile.php",
+                    '/' . $file->get_contextid() .
+                    '/' . $file->get_component() .
+                    '/' . $file->get_filearea() . $file->get_filepath() . $file->get_filename());
                 }
-            }
-
-            else {
+            } else {
                 // Marker details.
                 $user = $DB->get_record('user', array('id' => $f->grader));
                 $userpicture = new user_picture($user);
