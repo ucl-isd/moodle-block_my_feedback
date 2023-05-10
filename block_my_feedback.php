@@ -21,16 +21,14 @@
  * @copyright 2023 Stuart Lamour
  * @license   http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
-class block_my_feedback extends block_base
-{
+class block_my_feedback extends block_base {
 
     /**
      * Initialises the block.
      *
      * @return void
      */
-    public function init()
-    {
+    public function init() {
         global $USER;
         $this->title = get_string('feedbackfor', 'block_my_feedback').' '.$USER->firstname;
     }
@@ -40,8 +38,7 @@ class block_my_feedback extends block_base
      *
      * @return stdClass The block content.
      */
-    public function get_content() : stdClass
-    {
+    public function get_content() : stdClass {
         global $OUTPUT;
 
         if ($this->content !== null) {
@@ -69,8 +66,7 @@ class block_my_feedback extends block_base
       *
       * @return array feedback items.
       */
-    public function fetch_feedback() : array
-    {
+    public function fetch_feedback() : array {
         global $CFG, $DB, $USER, $OUTPUT;
         // Return users 5 most recent feedbacks.
         // Limit to last 3 months.
@@ -150,8 +146,7 @@ class block_my_feedback extends block_base
      *
      * @return array of the pages where the block can be added.
      */
-    public function applicable_formats()
-    {
+    public function applicable_formats() {
         return [
             'admin' => false,
             'site-index' => true,
