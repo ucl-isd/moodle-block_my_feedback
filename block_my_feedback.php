@@ -52,8 +52,10 @@ class block_my_feedback extends block_base {
         // TODO - real url here please.
         $template->allfeedbackurl = new moodle_url('/report/myfeedback/index.php');
         $template->feedback = $this->fetch_feedback();
+
+        // Hide the block when no content.
         if (!$template->feedback) {
-            $template->nofeedback = true;
+            return $this->content;
         }
 
         $this->content->text = $OUTPUT->render_from_template('block_my_feedback/content', $template);
