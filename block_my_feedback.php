@@ -135,7 +135,7 @@ class block_my_feedback extends block_base {
                 $userpicture = new user_picture($user);
                 $userpicture->size = 100;
                 $icon = $userpicture->get_url($this->page)->out(false);
-                $feedback->tutorname = $user->firstname.' '.$user->lastname;
+                $feedback->tutorname = fullname($user);
                 $feedback->tutoricon = $icon;
             }
 
