@@ -77,27 +77,49 @@ class block_my_feedback extends block_base {
 
         // Query altered from assign messaging system.
         // TODO - Can probably be optimised.
-        $sql = "SELECT g.id as gradeid, a.course, a.name, a.blindmarking, a.revealidentities, a.hidegrader, a.grade as maxgrade,
-                       g.*, g.timemodified as lastmodified, cm.id as cmid, um.id as recordid
-                 FROM {assign} a
-                 JOIN {assign_grades} g ON g.assignment = a.id
-            LEFT JOIN {assign_user_flags} uf ON uf.assignment = a.id AND uf.userid = g.userid
-                 JOIN {course_modules} cm ON cm.course = a.course AND cm.instance = a.id
-                 JOIN {modules} md ON md.id = cm.module AND md.name = 'assign'
-                 JOIN {grade_items} gri ON gri.iteminstance = a.id AND gri.courseid = a.course AND gri.itemmodule = md.name
-            LEFT JOIN {assign_user_mapping} um ON g.id = um.userid AND um.assignment = a.id
-                 WHERE (a.markingworkflow = 0 OR (a.markingworkflow = 1 AND uf.workflowstate = :wfreleased)) AND
-                       g.grader > 0 AND gri.hidden = 0 AND g.userid = :userid AND
-                       g.timemodified >= :since AND g.timemodified <= :today
-              ORDER BY g.timemodified
-                 LIMIT 5";
 
-        $params = array(
-            'since' => $since,
-            'today' => time(),
-            'wfreleased' => 'released',
-            'userid' => $USER->id,
-        );
+        // Construct the IN clause.
+        list($insql, $params) = $DB->get_in_or_equal(array('assign', 'turnitintooltwo'), SQL_PARAMS_NAMED);
+
+        // Add other params.
+        $params['userid'] = $USER->id;
+        $params['since'] = $since;
+        $params['wfreleased'] = 'released';
+
+        // Query the latest 5 modified grades / feedbacks for assignments and turnitin.
+        $sql = "SELECT
+                    gg.id AS gradeid,
+                    gi.courseid AS course,
+                    a.hidegrader AS hidegrader,
+                    gi.itemname AS name,
+                    gg.usermodified AS grader,
+                    gg.timemodified AS lastmodified,
+                    cm.id AS cmid,
+                    gi.itemmodule AS modname
+                FROM
+                    {grade_grades} gg
+                        JOIN
+                    {grade_items} gi ON gg.itemid = gi.id
+                        JOIN
+                    {modules} m ON gi.itemmodule = m.name
+                        JOIN
+                    {course_modules} cm ON gi.courseid = cm.course AND m.id = cm.module AND gi.iteminstance = cm.instance
+                        JOIN
+                    {user} u ON gg.usermodified = u.id
+                        LEFT JOIN
+                    {assign} a ON gi.iteminstance = a.id AND gi.itemmodule = 'assign'
+                        LEFT JOIN
+                    {assign_user_flags} uf ON gg.userid = uf.userid AND a.id = uf.assignment AND a.markingworkflow = 1
+                WHERE
+                    (gg.finalgrade IS NOT NULL OR gg.feedback IS NOT NULL)
+                        AND gi.itemmodule $insql
+                        AND (IFNULL(a.markingworkflow, 0) = 0 OR (a.markingworkflow = 1 AND uf.workflowstate = :wfreleased))
+                        AND gi.hidden < UNIX_TIMESTAMP()
+                        AND gg.timemodified >= :since AND gg.timemodified <= UNIX_TIMESTAMP()
+                        AND gg.userid = :userid
+                ORDER BY gg.timemodified DESC
+                LIMIT 5";
+
         $submissions = $DB->get_records_sql($sql, $params);
 
         // No feedback.
@@ -112,7 +134,7 @@ class block_my_feedback extends block_base {
             $feedback->id = $f->gradeid;
             $feedback->date = date('jS F', $f->lastmodified);
             $feedback->activityname = $f->name;
-            $feedback->link = new moodle_url('/mod/assign/view.php', ['id' => $f->cmid]);
+            $feedback->link = new moodle_url('/mod/'.$f->modname.'/view.php', ['id' => $f->cmid]);
 
             // Course.
             $course = $DB->get_record('course', array('id' => $f->course));
