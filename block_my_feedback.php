@@ -49,7 +49,6 @@ class block_my_feedback extends block_base {
         $this->content->footer = '';
 
         $template = new stdClass();
-        // TODO - real url here please.
         $template->allfeedbackurl = new moodle_url('/report/myfeedback/index.php');
         $template->feedback = $this->fetch_feedback();
 
@@ -63,20 +62,17 @@ class block_my_feedback extends block_base {
         return $this->content;
     }
 
-     /**
-      *  Get my feedback call.
-      *
-      * @return array feedback items.
-      */
+    /**
+     *  Get my feedback call.
+     *
+     * @return array feedback items.
+     */
     public function fetch_feedback() : array {
         global $CFG, $DB, $USER, $OUTPUT;
         // Return users 5 most recent feedbacks.
+
         // Limit to last 3 months.
-
         $since = time() - (2160 * 3600); // 2160 = 90 days from today as hours.
-
-        // Query altered from assign messaging system.
-        // TODO - Can probably be optimised.
 
         // Construct the IN clause.
         list($insql, $params) = $DB->get_in_or_equal(array('assign', 'turnitintooltwo'), SQL_PARAMS_NAMED);
@@ -84,7 +80,7 @@ class block_my_feedback extends block_base {
         // Add other params.
         $params['userid'] = $USER->id;
         $params['since'] = $since;
-        $params['wfreleased'] = 'released';
+        $params['wfreleased'] = 'released'; // Has the grade been released?
 
         // Query the latest 5 modified grades / feedbacks for assignments and turnitin.
         $sql = "SELECT
