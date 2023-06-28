@@ -136,6 +136,11 @@ class block_my_feedback extends block_base {
             $course = $DB->get_record('course', array('id' => $f->course));
             $feedback->coursename = $course->fullname;
 
+            // UCL want to always hide grader for turnitintooltwo.
+            if ($f->modname == 'turnitintooltwo') {
+                $f->hidegrader = true;
+            }
+
             // Marker.
             if ($f->hidegrader) {
                 // Hide grader, so use course image.
