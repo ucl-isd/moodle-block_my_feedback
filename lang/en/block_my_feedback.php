@@ -25,6 +25,7 @@
 $string['pluginname'] = 'My feedback';
 $string['my_feedback:addinstance'] = 'Add my feedback block';
 $string['my_feedback:myaddinstance'] = 'Add my feedback block';
+$string['privacy:metadata'] = 'My Feedback does not store any personal data.';
 
 $string['feedbackfor'] = 'Feedback for';
 $string['norecentfeedback'] = 'No recent feedback';
