@@ -13,6 +13,7 @@
 //
 // You should have received a copy of the GNU General Public License
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
+use core_course\external\course_summary_exporter;
 
 /**
  * Block definition class for the block_my_feedback plugin.
@@ -145,21 +146,15 @@ class block_my_feedback extends block_base {
             if ($f->hidegrader) {
                 // Hide grader, so use course image.
                 // Course image.
-                $course = new \core_course_list_element($course);
-                foreach ($course->get_course_overviewfiles() as $file) {
-                    $feedback->tutoricon = file_encode_url("$CFG->wwwroot/pluginfile.php",
-                    '/' . $file->get_contextid() .
-                    '/' . $file->get_component() .
-                    '/' . $file->get_filearea() . $file->get_filepath() . $file->get_filename());
-                }
+                $feedback->icon = course_summary_exporter::get_course_image($course);
             } else {
                 // Marker details.
-                $user = $DB->get_record('user', array('id' => $f->grader));
+                $user = core_user::get_user($f->grader);
                 $userpicture = new user_picture($user);
                 $userpicture->size = 100;
                 $icon = $userpicture->get_url($this->page)->out(false);
                 $feedback->tutorname = fullname($user);
-                $feedback->tutoricon = $icon;
+                $feedback->icon = $icon;
             }
 
             $template->feedback[] = $feedback;
@@ -182,4 +177,3 @@ class block_my_feedback extends block_base {
         ];
     }
 }
-
