@@ -146,7 +146,7 @@ class block_my_feedback extends block_base {
             if ($f->hidegrader) {
                 // Hide grader, so use course image.
                 // Course image.
-                $feedback->tutoricon = course_summary_exporter::get_course_image($course);
+                $feedback->icon = course_summary_exporter::get_course_image($course);
             } else {
                 // Marker details.
                 $user = core_user::get_user($f->grader);
@@ -154,7 +154,7 @@ class block_my_feedback extends block_base {
                 $userpicture->size = 100;
                 $icon = $userpicture->get_url($this->page)->out(false);
                 $feedback->tutorname = fullname($user);
-                $feedback->tutoricon = $icon;
+                $feedback->icon = $icon;
             }
 
             $template->feedback[] = $feedback;
