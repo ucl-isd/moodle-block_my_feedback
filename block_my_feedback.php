@@ -31,7 +31,13 @@ class block_my_feedback extends block_base {
      */
     public function init() {
         global $USER;
-        $this->title = get_string('feedbackfor', 'block_my_feedback').' '.$USER->firstname;
+
+        // If $USER->firstname is not set yet do not try to use it.
+        if (!isset($USER->firstname)) {
+            $this->title = get_string('pluginname', 'block_my_feedback');
+        } else {
+            $this->title = get_string('feedbackfor', 'block_my_feedback').' '.$USER->firstname;
+        }
     }
 
     /**
