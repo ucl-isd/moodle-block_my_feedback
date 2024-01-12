@@ -14,6 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 use core_course\external\course_summary_exporter;
+use mod_quiz\question\display_options;
 
 /**
  * Block definition class for the block_my_feedback plugin.
@@ -73,23 +74,26 @@ class block_my_feedback extends block_base {
      *  Get my feedback call.
      *
      * @return array feedback items.
+     * @throws coding_exception
+     * @throws dml_exception
+     * @throws moodle_exception
      */
     public function fetch_feedback() : array {
-        global $CFG, $DB, $USER, $OUTPUT;
+        global $DB, $USER;
+
         // Return users 5 most recent feedbacks.
 
         // Limit to last 3 months.
-        $since = time() - (2160 * 3600); // 2160 = 90 days from today as hours.
-
+        $since = strtotime('-3 month');
         // Construct the IN clause.
-        list($insql, $params) = $DB->get_in_or_equal(array('assign', 'turnitintooltwo'), SQL_PARAMS_NAMED);
+        list($insql, $params) = $DB->get_in_or_equal(['assign', 'quiz', 'turnitintooltwo'], SQL_PARAMS_NAMED);
 
         // Add other params.
         $params['userid'] = $USER->id;
         $params['since'] = $since;
         $params['wfreleased'] = 'released'; // Has the grade been released?
 
-        // Query the latest 5 modified grades / feedbacks for assignments and turnitin.
+        // Query the modified grades / feedbacks for assignments, quizzes and turnitin.
         $sql = "SELECT
                     gg.id AS gradeid,
                     gi.courseid AS course,
@@ -98,7 +102,8 @@ class block_my_feedback extends block_base {
                     gg.usermodified AS grader,
                     gg.timemodified AS lastmodified,
                     cm.id AS cmid,
-                    gi.itemmodule AS modname
+                    gi.itemmodule AS modname,
+                    cm.instance as instance
                 FROM
                     {grade_grades} gg
                         JOIN
@@ -120,8 +125,7 @@ class block_my_feedback extends block_base {
                         AND gi.hidden < UNIX_TIMESTAMP()
                         AND gg.timemodified >= :since AND gg.timemodified <= UNIX_TIMESTAMP()
                         AND gg.userid = :userid
-                ORDER BY gg.timemodified DESC
-                LIMIT 5";
+                ORDER BY gg.timemodified DESC";
 
         $submissions = $DB->get_records_sql($sql, $params);
 
@@ -132,7 +136,20 @@ class block_my_feedback extends block_base {
 
         // Template data for mustache.
         $template = new stdClass();
+        $template->feedback = [];
+        $i = 0; // We only want to show up to 5 grades - so count the output.
+
         foreach ($submissions as $f) {
+            // Check if a quiz feedback should be shown.
+            if ($f->modname == 'quiz' && !$this->show_quiz_submission($f)) {
+                continue;
+            }
+
+            // Check if we have enough grades to show.
+            if ($i++ > 5) {
+                break;
+            }
+
             $feedback = new stdClass();
             $feedback->id = $f->gradeid;
             $feedback->date = date('jS F', $f->lastmodified);
@@ -143,8 +160,8 @@ class block_my_feedback extends block_base {
             $course = $DB->get_record('course', array('id' => $f->course));
             $feedback->coursename = $course->fullname;
 
-            // UCL want to always hide grader for turnitintooltwo.
-            if ($f->modname == 'turnitintooltwo') {
+            // UCL want to always hide grader for quiz and turnitintooltwo.
+            if ($f->modname == 'quiz' || $f->modname == 'turnitintooltwo') {
                 $f->hidegrader = true;
             }
 
@@ -166,6 +183,33 @@ class block_my_feedback extends block_base {
             $template->feedback[] = $feedback;
         }
         return  $template->feedback;
+    }
+
+    /**
+     * Checking Review options for showing quiz submissions.
+     *
+     * @param stdClass $submission
+     * @return bool
+     * @throws dml_exception
+     */
+    public function show_quiz_submission(stdClass $submission): bool {
+        global $DB;
+
+        $quizobj = $DB->get_record('quiz', ['id' => $submission->instance]);
+
+        if ($quizobj->timeclose > 0 && $quizobj->timeclose < time()) { // The quiz is closed.
+            $reviewoptions = display_options::make_from_quiz($quizobj, display_options::AFTER_CLOSE);
+        } else {
+            $reviewoptions = display_options::make_from_quiz($quizobj, display_options::LATER_WHILE_OPEN);
+        }
+
+        // Only when these options are all set the submission should be shown.
+        // NB: when maxmarks and marks are both set $reviewoptions->marks == 2.
+        if ($reviewoptions->attempt + $reviewoptions->correctness + $reviewoptions->marks == 4) {
+            return true;
+        }
+
+        return false;
     }
 
     /**
