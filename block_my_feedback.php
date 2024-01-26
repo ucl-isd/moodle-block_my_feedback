@@ -131,7 +131,7 @@ class block_my_feedback extends block_base {
 
         // No feedback.
         if (!$submissions) {
-            return array();
+            return [];
         }
 
         // Template data for mustache.
@@ -157,7 +157,7 @@ class block_my_feedback extends block_base {
             $feedback->link = new moodle_url('/mod/'.$f->modname.'/view.php', ['id' => $f->cmid]);
 
             // Course.
-            $course = $DB->get_record('course', array('id' => $f->course));
+            $course = $DB->get_record('course', ['id' => $f->course]);
             $feedback->coursename = $course->fullname;
 
             // UCL want to always hide grader for quiz and turnitintooltwo.
