@@ -29,6 +29,6 @@ $string['privacy:metadata'] = 'My Feedback does not store any personal data.';
 
 $string['feedbackfor'] = 'Feedback for';
 $string['norecentfeedback'] = 'No recent feedback';
-$string['viewallfeedback'] = 'View all your feedback';
-$string['viewfeedback'] = 'View feedback';
+$string['viewallfeedback'] = 'Feedback';
+$string['viewgrades'] = 'Grades';
 
