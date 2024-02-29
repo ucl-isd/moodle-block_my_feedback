@@ -46,7 +46,7 @@ class block_my_feedback extends block_base {
      *
      * @return stdClass The block content.
      */
-    public function get_content() : stdClass {
+    public function get_content(): stdClass {
         global $OUTPUT;
 
         if ($this->content !== null) {
@@ -71,7 +71,7 @@ class block_my_feedback extends block_base {
      * @throws dml_exception
      * @throws moodle_exception
      */
-    public function fetch_feedback() : array {
+    public function fetch_feedback(): array {
         global $DB, $USER;
 
         // Return users 5 most recent feedbacks.
