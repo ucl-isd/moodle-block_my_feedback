@@ -58,14 +58,14 @@
 {{/feedback}}
 
 
-{{#nofeedback}}
+{{^feedback}}
 <p>{{#str}} norecentfeedback, block_my_feedback {{/str}}</p>
-{{/nofeedback}}
+{{/feedback}}
 
-<div class="text-right py-2">
-    <a href="{{{ config.wwwroot }}}/grade/report/overview/"><i class="fa-solid fa-circle-arrow-right mr-1" aria-hidden="true"></i>{{#str}} viewgrades, block_my_feedback {{/str}}
+<div class="d-flex justify-content-between py-2">
+    <a href="{{{ config.wwwroot }}}/grade/report/overview/"><i class="fa-solid fa-circle-arrow-right mr-2" aria-hidden="true"></i>{{#str}} viewgrades, block_my_feedback {{/str}}
     </a>
-    <br>
-    <a href="{{{allfeedbackurl}}}"><i class="fa-solid fa-circle-arrow-right mr-1" aria-hidden="true"></i>{{#str}} viewallfeedback, block_my_feedback {{/str}}
+
+    <a href="{{{ config.wwwroot }}}/report/myfeedback/index.php"><i class="fa-solid fa-circle-arrow-right mr-2" aria-hidden="true"></i>{{#str}} viewallfeedback, block_my_feedback {{/str}}
     </a>
 </div>

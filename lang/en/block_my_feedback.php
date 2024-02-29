@@ -28,7 +28,7 @@ $string['my_feedback:myaddinstance'] = 'Add my feedback block';
 $string['privacy:metadata'] = 'My Feedback does not store any personal data.';
 
 $string['feedbackfor'] = 'Feedback for';
-$string['norecentfeedback'] = 'No recent feedback';
-$string['viewallfeedback'] = 'Feedback';
+$string['norecentfeedback'] = "Recent feedback you've received will show here.";
+$string['viewallfeedback'] = 'Feedback report';
 $string['viewgrades'] = 'Grades';
 
