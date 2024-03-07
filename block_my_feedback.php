@@ -58,8 +58,13 @@ class block_my_feedback extends block_base {
 
         $template = new stdClass();
         $template->feedback = $this->fetch_feedback();
-        $this->content->text = $OUTPUT->render_from_template('block_my_feedback/content', $template);
 
+        // Hide the block when no content.
+        if (!$template->feedback) {
+            return $this->content;
+        }
+
+        $this->content->text = $OUTPUT->render_from_template('block_my_feedback/content', $template);
         return $this->content;
     }
 
