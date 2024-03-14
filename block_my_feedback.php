@@ -160,6 +160,8 @@ class block_my_feedback extends block_base {
         $params['since'] = $since;
         $params['wfreleased'] = 'released'; // Has the grade been released?
 
+        $unixtimestamp = time();
+
         // Query the modified grades / feedbacks for assignments, quizzes and turnitin.
         $sql = "SELECT
                     gg.id AS gradeid,
@@ -189,9 +191,9 @@ class block_my_feedback extends block_base {
                 WHERE
                     (gg.finalgrade IS NOT NULL OR gg.feedback IS NOT NULL)
                         AND gi.itemmodule $insql
-                        AND (IFNULL(a.markingworkflow, 0) = 0 OR (a.markingworkflow = 1 AND uf.workflowstate = :wfreleased))
-                        AND gi.hidden < UNIX_TIMESTAMP()
-                        AND gg.timemodified >= :since AND gg.timemodified <= UNIX_TIMESTAMP()
+                        AND (COALESCE(a.markingworkflow, 0) = 0 OR (a.markingworkflow = 1 AND uf.workflowstate = :wfreleased))
+                        AND gi.hidden < $unixtimestamp
+                        AND gg.timemodified >= :since AND gg.timemodified <= $unixtimestamp
                         AND gg.userid = :userid
                 ORDER BY gg.timemodified DESC";
 
