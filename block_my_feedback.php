@@ -189,7 +189,7 @@ class block_my_feedback extends block_base {
                 WHERE
                     (gg.finalgrade IS NOT NULL OR gg.feedback IS NOT NULL)
                         AND gi.itemmodule $insql
-                        AND (IFNULL(a.markingworkflow, 0) = 0 OR (a.markingworkflow = 1 AND uf.workflowstate = :wfreleased))
+                        AND (COALESCE(a.markingworkflow, 0) = 0 OR (a.markingworkflow = 1 AND uf.workflowstate = :wfreleased))
                         AND gi.hidden < UNIX_TIMESTAMP()
                         AND gg.timemodified >= :since AND gg.timemodified <= UNIX_TIMESTAMP()
                         AND gg.userid = :userid
