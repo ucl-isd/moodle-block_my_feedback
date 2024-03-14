@@ -13,6 +13,7 @@
 //
 // You should have received a copy of the GNU General Public License
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
+use core\context\user;
 use core_course\external\course_summary_exporter;
 use mod_quiz\question\display_options;
 
@@ -47,7 +48,7 @@ class block_my_feedback extends block_base {
      * @return stdClass The block content.
      */
     public function get_content(): stdClass {
-        global $OUTPUT;
+        global $OUTPUT, $USER;
 
         if ($this->content !== null) {
             return $this->content;
@@ -57,7 +58,7 @@ class block_my_feedback extends block_base {
         $this->content->footer = '';
 
         $template = new stdClass();
-        $template->feedback = $this->fetch_feedback();
+        $template->feedback = $this->fetch_feedback($USER);
 
         // Hide the block when no content.
         if (!$template->feedback) {
@@ -69,25 +70,93 @@ class block_my_feedback extends block_base {
     }
 
     /**
-     *  Get my feedback call.
+     *  Get my feedback call for a user.
      *
+     * Return users 5 most recent feedbacks.
+     * @param stdClass $user
      * @return array feedback items.
      * @throws coding_exception
      * @throws dml_exception
      * @throws moodle_exception
      */
-    public function fetch_feedback(): array {
-        global $DB, $USER;
+    public function fetch_feedback($user): array {
+        global $DB;
 
-        // Return users 5 most recent feedbacks.
+        $submissions = $this->get_submissions($user);
 
+        // No feedback.
+        if (!$submissions) {
+            return [];
+        }
+
+        // Template data for mustache.
+        $template = new stdClass();
+        $template->feedback = [];
+        $i = 0; // We only want to show up to 5 grades - so count the output.
+
+        foreach ($submissions as $f) {
+            // Check if a quiz feedback should be shown.
+            if ($f->modname == 'quiz' && !$this->show_quiz_submission($f)) {
+                continue;
+            }
+
+            // Check if we have enough grades to show.
+            if ($i++ >= 5) {
+                break;
+            }
+
+            $feedback = new stdClass();
+            $feedback->id = $f->gradeid;
+            $feedback->date = date('jS F', $f->lastmodified);
+            $feedback->activityname = $f->name;
+            $feedback->link = new moodle_url('/mod/'.$f->modname.'/view.php', ['id' => $f->cmid]);
+
+            // Course.
+            $course = $DB->get_record('course', ['id' => $f->course]);
+            $feedback->coursename = $course->fullname;
+
+            // UCL want to always hide grader for quiz and turnitintooltwo.
+            if ($f->modname == 'quiz' || $f->modname == 'turnitintooltwo') {
+                $f->hidegrader = true;
+            }
+
+            // Marker.
+            if ($f->hidegrader) {
+                // Hide grader, so use course image.
+                // Course image.
+                $feedback->icon = course_summary_exporter::get_course_image($course);
+            } else {
+                // Marker details.
+                $grader = core_user::get_user($f->grader);
+                $userpicture = new user_picture($grader);
+                $userpicture->size = 100;
+                $icon = $userpicture->get_url($this->page)->out(false);
+                $feedback->tutorname = fullname($grader);
+                $feedback->icon = $icon;
+            }
+
+            $template->feedback[] = $feedback;
+        }
+        return  $template->feedback;
+    }
+
+    /**
+     * Get all assign, quiz and turnitintooltwo submissions for a user that are no older than 3 month.
+     *
+     * @param stdClass $user
+     * @return array
+     * @throws coding_exception
+     * @throws dml_exception
+     */
+    public function get_submissions($user) {
+        global $DB;
         // Limit to last 3 months.
         $since = strtotime('-3 month');
         // Construct the IN clause.
         list($insql, $params) = $DB->get_in_or_equal(['assign', 'quiz', 'turnitintooltwo'], SQL_PARAMS_NAMED);
 
         // Add other params.
-        $params['userid'] = $USER->id;
+        $params['userid'] = $user->id;
         $params['since'] = $since;
         $params['wfreleased'] = 'released'; // Has the grade been released?
 
@@ -97,6 +166,7 @@ class block_my_feedback extends block_base {
                     gi.courseid AS course,
                     a.hidegrader AS hidegrader,
                     gi.itemname AS name,
+                    gg.userid AS userid,
                     gg.usermodified AS grader,
                     gg.timemodified AS lastmodified,
                     cm.id AS cmid,
@@ -125,62 +195,7 @@ class block_my_feedback extends block_base {
                         AND gg.userid = :userid
                 ORDER BY gg.timemodified DESC";
 
-        $submissions = $DB->get_records_sql($sql, $params);
-
-        // No feedback.
-        if (!$submissions) {
-            return [];
-        }
-
-        // Template data for mustache.
-        $template = new stdClass();
-        $template->feedback = [];
-        $i = 0; // We only want to show up to 5 grades - so count the output.
-
-        foreach ($submissions as $f) {
-            // Check if a quiz feedback should be shown.
-            if ($f->modname == 'quiz' && !$this->show_quiz_submission($f)) {
-                continue;
-            }
-
-            // Check if we have enough grades to show.
-            if ($i++ > 5) {
-                break;
-            }
-
-            $feedback = new stdClass();
-            $feedback->id = $f->gradeid;
-            $feedback->date = date('jS F', $f->lastmodified);
-            $feedback->activityname = $f->name;
-            $feedback->link = new moodle_url('/mod/'.$f->modname.'/view.php', ['id' => $f->cmid]);
-
-            // Course.
-            $course = $DB->get_record('course', ['id' => $f->course]);
-            $feedback->coursename = $course->fullname;
-
-            // UCL want to always hide grader for quiz and turnitintooltwo.
-            if ($f->modname == 'quiz' || $f->modname == 'turnitintooltwo') {
-                $f->hidegrader = true;
-            }
-
-            // Marker.
-            if ($f->hidegrader) {
-                // Hide grader, so use course image.
-                // Course image.
-                $feedback->icon = course_summary_exporter::get_course_image($course);
-            } else {
-                // Marker details.
-                $user = core_user::get_user($f->grader);
-                $userpicture = new user_picture($user);
-                $userpicture->size = 100;
-                $icon = $userpicture->get_url($this->page)->out(false);
-                $feedback->tutorname = fullname($user);
-                $feedback->icon = $icon;
-            }
-
-            $template->feedback[] = $feedback;
-        }
-        return  $template->feedback;
+        return $DB->get_records_sql($sql, $params);
     }
 
     /**
