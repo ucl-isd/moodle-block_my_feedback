@@ -13,6 +13,7 @@
 //
 // You should have received a copy of the GNU General Public License
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
+use core\context\user;
 use core_course\external\course_summary_exporter;
 use mod_quiz\question\display_options;
 
@@ -47,7 +48,7 @@ class block_my_feedback extends block_base {
      * @return stdClass The block content.
      */
     public function get_content(): stdClass {
-        global $OUTPUT;
+        global $OUTPUT, $USER;
 
         if ($this->content !== null) {
             return $this->content;
@@ -57,7 +58,7 @@ class block_my_feedback extends block_base {
         $this->content->footer = '';
 
         $template = new stdClass();
-        $template->feedback = $this->fetch_feedback();
+        $template->feedback = $this->fetch_feedback($USER);
 
         // Hide the block when no content.
         if (!$template->feedback) {
@@ -69,63 +70,19 @@ class block_my_feedback extends block_base {
     }
 
     /**
-     *  Get my feedback call.
+     *  Get my feedback call for a user.
      *
+     * Return users 5 most recent feedbacks.
+     * @param stdClass $user
      * @return array feedback items.
      * @throws coding_exception
      * @throws dml_exception
      * @throws moodle_exception
      */
-    public function fetch_feedback(): array {
-        global $DB, $USER;
+    public function fetch_feedback($user): array {
+        global $DB;
 
-        // Return users 5 most recent feedbacks.
-
-        // Limit to last 3 months.
-        $since = strtotime('-3 month');
-        // Construct the IN clause.
-        list($insql, $params) = $DB->get_in_or_equal(['assign', 'quiz', 'turnitintooltwo'], SQL_PARAMS_NAMED);
-
-        // Add other params.
-        $params['userid'] = $USER->id;
-        $params['since'] = $since;
-        $params['wfreleased'] = 'released'; // Has the grade been released?
-
-        // Query the modified grades / feedbacks for assignments, quizzes and turnitin.
-        $sql = "SELECT
-                    gg.id AS gradeid,
-                    gi.courseid AS course,
-                    a.hidegrader AS hidegrader,
-                    gi.itemname AS name,
-                    gg.usermodified AS grader,
-                    gg.timemodified AS lastmodified,
-                    cm.id AS cmid,
-                    gi.itemmodule AS modname,
-                    cm.instance as instance
-                FROM
-                    {grade_grades} gg
-                        JOIN
-                    {grade_items} gi ON gg.itemid = gi.id
-                        JOIN
-                    {modules} m ON gi.itemmodule = m.name
-                        JOIN
-                    {course_modules} cm ON gi.courseid = cm.course AND m.id = cm.module AND gi.iteminstance = cm.instance
-                        JOIN
-                    {user} u ON gg.usermodified = u.id
-                        LEFT JOIN
-                    {assign} a ON gi.iteminstance = a.id AND gi.itemmodule = 'assign'
-                        LEFT JOIN
-                    {assign_user_flags} uf ON gg.userid = uf.userid AND a.id = uf.assignment AND a.markingworkflow = 1
-                WHERE
-                    (gg.finalgrade IS NOT NULL OR gg.feedback IS NOT NULL)
-                        AND gi.itemmodule $insql
-                        AND (IFNULL(a.markingworkflow, 0) = 0 OR (a.markingworkflow = 1 AND uf.workflowstate = :wfreleased))
-                        AND gi.hidden < UNIX_TIMESTAMP()
-                        AND gg.timemodified >= :since AND gg.timemodified <= UNIX_TIMESTAMP()
-                        AND gg.userid = :userid
-                ORDER BY gg.timemodified DESC";
-
-        $submissions = $DB->get_records_sql($sql, $params);
+        $submissions = $this->get_submissions($user);
 
         // No feedback.
         if (!$submissions) {
@@ -144,7 +101,7 @@ class block_my_feedback extends block_base {
             }
 
             // Check if we have enough grades to show.
-            if ($i++ > 5) {
+            if ($i++ >= 5) {
                 break;
             }
 
@@ -170,17 +127,77 @@ class block_my_feedback extends block_base {
                 $feedback->icon = course_summary_exporter::get_course_image($course);
             } else {
                 // Marker details.
-                $user = core_user::get_user($f->grader);
-                $userpicture = new user_picture($user);
+                $grader = core_user::get_user($f->grader);
+                $userpicture = new user_picture($grader);
                 $userpicture->size = 100;
                 $icon = $userpicture->get_url($this->page)->out(false);
-                $feedback->tutorname = fullname($user);
+                $feedback->tutorname = fullname($grader);
                 $feedback->icon = $icon;
             }
 
             $template->feedback[] = $feedback;
         }
         return  $template->feedback;
+    }
+
+    /**
+     * Get all assign, quiz and turnitintooltwo submissions for a user that are no older than 3 month.
+     *
+     * @param stdClass $user
+     * @return array
+     * @throws coding_exception
+     * @throws dml_exception
+     */
+    public function get_submissions($user) {
+        global $DB;
+        // Limit to last 3 months.
+        $since = strtotime('-3 month');
+        // Construct the IN clause.
+        list($insql, $params) = $DB->get_in_or_equal(['assign', 'quiz', 'turnitintooltwo'], SQL_PARAMS_NAMED);
+
+        // Add other params.
+        $params['userid'] = $user->id;
+        $params['since'] = $since;
+        $params['wfreleased'] = 'released'; // Has the grade been released?
+
+        $unixtimestamp = time();
+
+        // Query the modified grades / feedbacks for assignments, quizzes and turnitin.
+        $sql = "SELECT
+                    gg.id AS gradeid,
+                    gi.courseid AS course,
+                    a.hidegrader AS hidegrader,
+                    gi.itemname AS name,
+                    gg.userid AS userid,
+                    gg.usermodified AS grader,
+                    gg.timemodified AS lastmodified,
+                    cm.id AS cmid,
+                    gi.itemmodule AS modname,
+                    cm.instance as instance
+                FROM
+                    {grade_grades} gg
+                        JOIN
+                    {grade_items} gi ON gg.itemid = gi.id
+                        JOIN
+                    {modules} m ON gi.itemmodule = m.name
+                        JOIN
+                    {course_modules} cm ON gi.courseid = cm.course AND m.id = cm.module AND gi.iteminstance = cm.instance
+                        JOIN
+                    {user} u ON gg.usermodified = u.id
+                        LEFT JOIN
+                    {assign} a ON gi.iteminstance = a.id AND gi.itemmodule = 'assign'
+                        LEFT JOIN
+                    {assign_user_flags} uf ON gg.userid = uf.userid AND a.id = uf.assignment AND a.markingworkflow = 1
+                WHERE
+                    (gg.finalgrade IS NOT NULL OR gg.feedback IS NOT NULL)
+                        AND gi.itemmodule $insql
+                        AND (COALESCE(a.markingworkflow, 0) = 0 OR (a.markingworkflow = 1 AND uf.workflowstate = :wfreleased))
+                        AND gi.hidden < $unixtimestamp
+                        AND gg.timemodified >= :since AND gg.timemodified <= $unixtimestamp
+                        AND gg.userid = :userid
+                ORDER BY gg.timemodified DESC";
+
+        return $DB->get_records_sql($sql, $params);
     }
 
     /**
