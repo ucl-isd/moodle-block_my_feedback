@@ -29,6 +29,6 @@ $string['privacy:metadata'] = 'My Feedback does not store any personal data.';
 
 $string['feedbackfor'] = 'Feedback for';
 $string['norecentfeedback'] = "Recent feedback you've received will show here.";
-$string['viewallfeedback'] = 'Feedback report';
-$string['viewgrades'] = 'Grades';
+$string['feedbackreport'] = "Feedback tracker";
+$string['feedbackreportdescription'] = "Assessments, feedback, and marks from your courses in UCL Moodle.";
 

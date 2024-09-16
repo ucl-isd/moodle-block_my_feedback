@@ -39,7 +39,7 @@
 <div class="mb-2">
     <div class="media">
 
-        <div class="mr-3 bg-cover rounded-circle d-inline-block" style="background-image: url('{{{icon}}}'); height:3em; width: 3em;"></div>
+        <div class="mr-3 bg-cover rounded-circle d-inline-block" style="background-image: url('{{{icon}}}'); height: 4rem; width: 4rem;"></div>
 
         <div class="media-body">
             <small class="d-block">{{coursename}}</small>
@@ -62,10 +62,13 @@
 <p>{{#str}} norecentfeedback, block_my_feedback {{/str}}</p>
 {{/feedback}}
 
-<div class="d-flex justify-content-between py-2">
-    <a href="{{{ config.wwwroot }}}/grade/report/overview/"><i class="fa-solid fa-circle-arrow-right mr-2" aria-hidden="true"></i>{{#str}} viewgrades, block_my_feedback {{/str}}
+<div class="bg-light pt-2 pb-3 px-3">
+    <span class="badge badge-warning">New</span>
+    <br>
+    <a href="{{{ config.wwwroot }}}/report/feedback_tracker/">
+        <i class="fa-solid fa-circle-arrow-right mr-2" aria-hidden="true"></i>{{#str}} feedbackreport, block_my_feedback {{/str}}
     </a>
-
-    <a href="{{{ config.wwwroot }}}/report/myfeedback/index.php"><i class="fa-solid fa-circle-arrow-right mr-2" aria-hidden="true"></i>{{#str}} viewallfeedback, block_my_feedback {{/str}}
-    </a>
+    <br>
+    <small>{{#str}} feedbackreportdescription, block_my_feedback {{/str}}</small>
 </div>
+<hr>
