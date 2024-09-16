@@ -15,20 +15,18 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * Languages configuration for the block_my_feedback plugin.
+ * Languages strings.
  *
  * @package   block_my_feedback
  * @copyright 2023 Stuart Lamour
  * @license   http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-$string['pluginname'] = 'My feedback';
-$string['my_feedback:addinstance'] = 'Add my feedback block';
-$string['my_feedback:myaddinstance'] = 'Add my feedback block';
-$string['privacy:metadata'] = 'My Feedback does not store any personal data.';
-
-$string['feedbackfor'] = 'Feedback for';
-$string['norecentfeedback'] = "Recent feedback you've received will show here.";
-$string['feedbackreport'] = "Feedback tracker";
-$string['feedbackreportdescription'] = "Assessments, feedback, and marks from your courses in UCL Moodle.";
-
+ $string['feedbackfor'] = 'Feedback for';
+ $string['feedbackreport'] = "Feedback tracker";
+ $string['feedbackreportdescription'] = "Assessments, feedback, and marks from your courses in UCL Moodle.";
+ $string['my_feedback:addinstance'] = 'Add my feedback block';
+ $string['my_feedback:myaddinstance'] = 'Add my feedback block';
+ $string['norecentfeedback'] = "Recent feedback you've received will show here.";
+ $string['pluginname'] = 'My feedback';
+ $string['privacy:metadata'] = 'My Feedback does not store any personal data.';
