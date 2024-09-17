@@ -13,6 +13,7 @@
 //
 // You should have received a copy of the GNU General Public License
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
+
 use core\context\user;
 use core_course\external\course_summary_exporter;
 use mod_quiz\question\display_options;
