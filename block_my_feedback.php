@@ -19,8 +19,6 @@ use core_course\external\course_summary_exporter;
 use local_assess_type\assess_type; // TODO - add in requires...
 use mod_quiz\question\display_options;
 
-defined('MOODLE_INTERNAL') || die();
-
 /**
  * Block definition class for the block_my_feedback plugin.
  *
