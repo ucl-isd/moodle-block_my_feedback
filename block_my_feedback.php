@@ -19,6 +19,8 @@ use core_course\external\course_summary_exporter;
 use local_assess_type\assess_type; // TODO - add in requires...
 use mod_quiz\question\display_options;
 
+defined('MOODLE_INTERNAL') || die();
+
 require_once($CFG->dirroot . '/mod/assign/locallib.php');
 
 /**
@@ -79,7 +81,7 @@ class block_my_feedback extends block_base {
             $this->content->text = $OUTPUT->render_from_template('block_my_feedback/content', $template);
         }
 
-       return $this->content;
+        return $this->content;
     }
 
 
@@ -184,13 +186,14 @@ class block_my_feedback extends block_base {
                 if (!$assess->requiremarking) {
                     return false;
                 }
-                $assess->markingurl = new moodle_url('/mod/'. $mod->modname. '/view.php', ['id' => $assess->cmid, 'action' => 'grader']);
+                $assess->markingurl = new moodle_url('/mod/'. $mod->modname. '/view.php',
+                    ['id' => $assess->cmid, 'action' => 'grader']
+                );
                 // Return template data.
                 return $assess;
 
-            // TODO - quiz.
+            // TODO - quiz - 'timeclose' ?.
             case 'quiz':
-                // return 'timeclose';
                 return false;
             // TODO - turnitin.
             default:
