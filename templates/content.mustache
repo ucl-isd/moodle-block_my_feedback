@@ -35,36 +35,51 @@
     }
 }}
 
-{{#feedback}}
-<div class="mb-2">
-    <div class="media">
+{{! TODO - Lots of duplication here, can we use the same template for marking and feedback? }}
+{{#marking}}
+<div class="d-flex">
 
-        <div class="mr-3 bg-cover rounded-circle d-inline-block" style="background-image: url('{{{icon}}}'); height: 4rem; width: 4rem;"></div>
+    <div class="mr-3 bg-cover bg-light rounded-circle flex-shrink-0" style="background-image: url('{{{icon}}}'); height: 4rem; width: 4rem;"></div>
 
-        <div class="media-body">
-            <small class="d-block">{{coursename}}</small>
-            <a href="{{{link}}}" class="font-weight-bold">{{activityname}}</a>
+    <div>
+        <div class="line-clamp-1 text-muted">
+            <small>{{{coursename}}}</small>
         </div>
-
+        <a href="{{url}}" class="font-weight-bold">{{{name}}}</a>
+        <div>
+            <small>{{#str}} t:due, block_my_feedback {{/str}} {{duedate}}</small>
+        </div>
     </div>
-
-    <div class='text-right'>
-        <small>{{#tutorname}}{{.}} · {{/tutorname}} {{date}}</small>
-    </div>
-
-    <hr>
-
 </div>
+
+<div class='text-right'>
+    <small>{{requiremarking}} {{#str}} t:requiremarking, block_my_feedback {{/str}}</small>
+</div>
+<hr>
+{{/marking}}
+
+
+{{#feedback}}
+<div class="d-flex">
+
+    <div class="mr-3 bg-cover rounded-circle flex-shrink-0" style="background-image: url('{{{icon}}}'); height: 4rem; width: 4rem;"></div>
+
+    <div>
+        <div class="line-clamp-1 text-muted">
+            <small>{{coursename}}</small>
+        </div>
+        <a href="{{{link}}}" class="font-weight-bold">{{activityname}}</a>
+    </div>
+</div>
+
+<div class='text-right'>
+    <small>{{#tutorname}}{{.}} · {{/tutorname}} {{date}}</small>
+</div>
+<hr>
 {{/feedback}}
 
-
-{{^feedback}}
-<p>{{#str}} norecentfeedback, block_my_feedback {{/str}}</p>
-{{/feedback}}
-
+{{#showfeedbacktrackerlink}}
 <div class="bg-light pt-2 pb-3 px-3">
-    <span class="badge badge-warning">New</span>
-    <br>
     <a href="{{{ config.wwwroot }}}/report/feedback_tracker/">
         <i class="fa-solid fa-circle-arrow-right mr-2" aria-hidden="true"></i>{{#str}} feedbackreport, block_my_feedback {{/str}}
     </a>
@@ -72,3 +87,4 @@
     <small>{{#str}} feedbackreportdescription, block_my_feedback {{/str}}</small>
 </div>
 <hr>
+{{/showfeedbacktrackerlink}}

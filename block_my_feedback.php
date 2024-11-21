@@ -14,9 +14,12 @@
 // You should have received a copy of the GNU General Public License
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
+
 use core\context\user;
 use core_course\external\course_summary_exporter;
+use local_assess_type\assess_type; // TODO - add in requires...
 use mod_quiz\question\display_options;
+require_once($CFG->dirroot . '/mod/assign/locallib.php');
 
 /**
  * Block definition class for the block_my_feedback plugin.
@@ -40,6 +43,9 @@ class block_my_feedback extends block_base {
             $this->title = get_string('pluginname', 'block_my_feedback');
         } else {
             $this->title = get_string('feedbackfor', 'block_my_feedback').' '.$USER->firstname;
+            if (self::is_teacher()) {
+                $this->title = get_string('markingfor', 'block_my_feedback').' '.$USER->firstname;
+            }
         }
     }
 
@@ -59,15 +65,180 @@ class block_my_feedback extends block_base {
         $this->content->footer = '';
 
         $template = new stdClass();
-        $template->feedback = $this->fetch_feedback($USER);
 
-        // Hide the block when no content.
-        if (!$template->feedback) {
-            return $this->content;
+        if (self::is_teacher()) {
+            // Teacher content.
+            $template->marking = $this->fetch_marking($USER);
+        } else {
+            // Student content.
+            $template->feedback = $this->fetch_feedback($USER);
+            $template->showfeedbacktrackerlink = true;
         }
 
-        $this->content->text = $OUTPUT->render_from_template('block_my_feedback/content', $template);
-        return $this->content;
+        if (isset($template->feedback) || isset($template->marking)) {
+            $this->content->text = $OUTPUT->render_from_template('block_my_feedback/content', $template);
+        }
+
+       return $this->content;
+    }
+
+
+    /**
+     * Return marking for a user.
+     *
+     * @param stdClass $user
+     */
+    public function fetch_marking(stdClass $user): ?array {
+        global $DB, $OUTPUT;
+        // User courses.
+        $courses = enrol_get_all_users_courses($user->id, false, ['enddate']);
+        // Marking.
+        $marking = [];
+
+        foreach ($courses as $course) {
+            // Skip hidden courses.
+            if (!$course->visible) {
+                continue;
+            }
+            // Skip none current course.
+            if (!self::is_course_current($course)) {
+                continue;
+            }
+            // Skip if no summative assessments.
+            if (!$summatives = assess_type::get_assess_type_records_by_courseid($course->id, "1")) {
+                continue;
+            }
+
+            $modinfo = get_fast_modinfo($course->id);
+
+            foreach ($summatives as $summative) {
+
+                // Check this is a course mod.
+                if (isset($summative->cmid)) {
+                    $cmid = $summative->cmid;
+                    $mod = $modinfo->get_cm($cmid);
+
+                    // Skip hidden mods.
+                    if (!$mod->visible) {
+                        continue;
+                    }
+
+                    // Template.
+                    $assess = new stdClass;
+                    $assess->cmid = $cmid;
+                    $assess->modname = $mod->modname;
+                    // Get due date and require marking.
+                    $assess = self::get_mod_data($mod, $assess);
+
+                    // Check mod has require marking (only set when there is a due date).
+                    if (isset($assess->requiremarking)) {
+                        // TODO - what is expensive here that we can do after sort and limit?
+                        $assess->name = $mod->name;
+                        $assess->coursename = $course->fullname;
+                        $assess->url = new moodle_url('/mod/'. $mod->modname. '/view.php', ['id' => $cmid]);
+                        $assess->icon = course_summary_exporter::get_course_image($course);
+                        $marking[] = $assess;
+                    }
+                }
+            }
+        }
+
+        // Sort and return data.
+        if ($marking) {
+            usort($marking, function ($a, $b) {
+                return $a->unixtimestamp <=> $b->unixtimestamp;
+            });
+
+            return array_slice($marking, 0, 5);
+        }
+        return null;
+    }
+
+    /**
+     * Return mod data - due date & require marking.
+     *
+     * TODO - turnitin, quiz.
+     *
+     * @param stdClass $mod
+     * @param stdClass $course
+     */
+    public function get_mod_data($mod, $assess) {
+        // Mods have different feilds for due date, and require marking.
+        switch ($mod->modname) {
+            case 'assign':
+
+                // Check mod due date is relevant.
+                $duedate = self::duedate_in_range($mod->customdata['duedate']);
+                if (!$duedate) {
+                    return false;
+                }
+
+                // Add dates.
+                $assess->unixtimestamp = $duedate;
+                $assess->duedate = date('jS F y', $duedate);
+
+                // Require marking.
+                $context = context_module::instance($mod->id);
+                $assignment = new assign($context, $mod, $mod->course);
+                $assess->requiremarking = $assignment->count_submissions_need_grading();
+                if (!$assess->requiremarking) {
+                    return false;
+                }
+                $assess->markingurl = new moodle_url('/mod/'. $mod->modname. '/view.php', ['id' => $assess->cmid, 'action' => 'grader']);
+                // Return template data.
+                return $assess;
+
+            // TODO - quiz
+            case 'quiz':
+                // return 'timeclose';
+                return false;
+            // TODO - turnitin
+            default:
+                return false;
+        }
+    }
+
+    /**
+     * Return if course has started (startdate) and has not ended (enddate).
+     *
+     * @param stdClass $course
+     */
+    public function is_course_current(stdClass $course): bool {
+        // Start date.
+        if ($course->startdate > time()){
+            return false; // Before the start date.
+        }
+
+        // End date.
+        if (isset($course->enddate)) {
+            if ($course->enddate == 0) {
+                return true; // Enddate is set to 0 when no end date, show course.
+            }
+            if (time() > $course->enddate){
+                return false; // After the end date.
+            }
+        }
+        return true; // All good, show course.
+    }
+
+    /**
+     * Return if a due date in the date range.
+     *
+     * @param int $duedate
+     */
+    public function duedate_in_range(int $duedate): ?int {
+        // Only show dates within a month.
+        $past = strtotime('-1 month');
+        $future = strtotime('+1 month');
+        // If due date is too far in the future.
+        if ($duedate > $future) {
+            return false;
+        }
+        // If due date is too far in the past.
+        if ($duedate < $past) {
+            return false;
+        }
+        return $duedate;
     }
 
     /**
@@ -80,14 +251,14 @@ class block_my_feedback extends block_base {
      * @throws dml_exception
      * @throws moodle_exception
      */
-    public function fetch_feedback($user): array {
+    public function fetch_feedback($user): ?array {
         global $DB;
 
         $submissions = $this->get_submissions($user);
 
         // No feedback.
         if (!$submissions) {
-            return [];
+            return null;
         }
 
         // Template data for mustache.
@@ -138,7 +309,11 @@ class block_my_feedback extends block_base {
 
             $template->feedback[] = $feedback;
         }
-        return  $template->feedback;
+
+        if ($template->feedback) {
+            return $template->feedback;
+        }
+        return null;
     }
 
     /**
@@ -226,6 +401,26 @@ class block_my_feedback extends block_base {
         }
 
         return false;
+    }
+
+    /**
+     * Return if user has archetype editingteacher.
+     *
+     */
+    public static function is_teacher(): bool {
+        global $DB, $USER;
+
+        // Get id's from role where archetype is editingteacher.
+        $roles = $DB->get_fieldset('role', 'id', ['archetype' => 'editingteacher']);
+
+        // Check if user has editingteacher role on any courses.
+        list($roles, $params) = $DB->get_in_or_equal($roles, SQL_PARAMS_NAMED);
+        $params['userid'] = $USER->id;
+        $sql = "SELECT id
+                FROM {role_assignments}
+                WHERE userid = :userid
+                AND roleid $roles";
+        return  $DB->record_exists_sql($sql, $params);
     }
 
     /**

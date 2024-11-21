@@ -24,9 +24,13 @@
 
  $string['feedbackfor'] = 'Feedback for';
  $string['feedbackreport'] = "Feedback tracker";
- $string['feedbackreportdescription'] = "Assessments, feedback, and marks from your courses in UCL Moodle.";
+ $string['feedbackreportdescription'] = "Assessments, feedback, and marks for all your courses in UCL Moodle.";
+ $string['markingfor'] = 'Marking for';
  $string['my_feedback:addinstance'] = 'Add my feedback block';
  $string['my_feedback:myaddinstance'] = 'Add my feedback block';
- $string['norecentfeedback'] = "Recent feedback you've received will show here.";
  $string['pluginname'] = 'My feedback';
  $string['privacy:metadata'] = 'My Feedback does not store any personal data.';
+
+ // Template strings.
+ $string['t:requiremarking'] = "require marking";
+ $string['t:due'] = "Due";
