@@ -21,7 +21,7 @@ use mod_quiz\question\display_options;
 
 defined('MOODLE_INTERNAL') || die();
 
-require_once($CFG->dirroot . '/mod/assign/locallib.php');
+require_once(__DIR__ .'/mod/assign/locallib.php');
 
 /**
  * Block definition class for the block_my_feedback plugin.
