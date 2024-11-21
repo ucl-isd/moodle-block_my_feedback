@@ -21,8 +21,6 @@ use mod_quiz\question\display_options;
 
 defined('MOODLE_INTERNAL') || die();
 
-require_once(__DIR__ .'/mod/assign/locallib.php');
-
 /**
  * Block definition class for the block_my_feedback plugin.
  *
@@ -165,6 +163,7 @@ class block_my_feedback extends block_base {
      * @param stdClass $assess
      */
     public function get_mod_data($mod, $assess) {
+        global $CFG;
         // Mods have different feilds for due date, and require marking.
         switch ($mod->modname) {
             case 'assign':
@@ -180,6 +179,7 @@ class block_my_feedback extends block_base {
                 $assess->duedate = date('jS F y', $duedate);
 
                 // Require marking.
+                require_once($CFG->dirroot.'/mod/assign/locallib.php');
                 $context = context_module::instance($mod->id);
                 $assignment = new assign($context, $mod, $mod->course);
                 $assess->requiremarking = $assignment->count_submissions_need_grading();
