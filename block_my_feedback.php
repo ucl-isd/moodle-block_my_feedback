@@ -14,11 +14,11 @@
 // You should have received a copy of the GNU General Public License
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
-
 use core\context\user;
 use core_course\external\course_summary_exporter;
 use local_assess_type\assess_type; // TODO - add in requires...
 use mod_quiz\question\display_options;
+
 require_once($CFG->dirroot . '/mod/assign/locallib.php');
 
 /**
@@ -160,7 +160,7 @@ class block_my_feedback extends block_base {
      * TODO - turnitin, quiz.
      *
      * @param stdClass $mod
-     * @param stdClass $course
+     * @param stdClass $assess
      */
     public function get_mod_data($mod, $assess) {
         // Mods have different feilds for due date, and require marking.
@@ -188,11 +188,11 @@ class block_my_feedback extends block_base {
                 // Return template data.
                 return $assess;
 
-            // TODO - quiz
+            // TODO - quiz.
             case 'quiz':
                 // return 'timeclose';
                 return false;
-            // TODO - turnitin
+            // TODO - turnitin.
             default:
                 return false;
         }
@@ -205,7 +205,7 @@ class block_my_feedback extends block_base {
      */
     public function is_course_current(stdClass $course): bool {
         // Start date.
-        if ($course->startdate > time()){
+        if ($course->startdate > time()) {
             return false; // Before the start date.
         }
 
@@ -214,7 +214,7 @@ class block_my_feedback extends block_base {
             if ($course->enddate == 0) {
                 return true; // Enddate is set to 0 when no end date, show course.
             }
-            if (time() > $course->enddate){
+            if (time() > $course->enddate) {
                 return false; // After the end date.
             }
         }
