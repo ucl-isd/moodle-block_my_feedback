@@ -36,14 +36,12 @@ class block_my_feedback extends block_base {
     public function init() {
         global $USER;
 
-        // If $USER->firstname is not set yet do not try to use it.
         if (!isset($USER->firstname)) {
             $this->title = get_string('pluginname', 'block_my_feedback');
+        } else if (self::is_teacher()) {
+            $this->title = get_string('markingfor', 'block_my_feedback').' '.$USER->firstname;
         } else {
             $this->title = get_string('feedbackfor', 'block_my_feedback').' '.$USER->firstname;
-            if (self::is_teacher()) {
-                $this->title = get_string('markingfor', 'block_my_feedback').' '.$USER->firstname;
-            }
         }
     }
 
@@ -87,7 +85,6 @@ class block_my_feedback extends block_base {
      * @param stdClass $user
      */
     public function fetch_marking(stdClass $user): ?array {
-        global $DB, $OUTPUT;
         // User courses.
         $courses = enrol_get_all_users_courses($user->id, false, ['enddate']);
         // Marking.
@@ -103,7 +100,7 @@ class block_my_feedback extends block_base {
                 continue;
             }
             // Skip if no summative assessments.
-            if (!$summatives = assess_type::get_assess_type_records_by_courseid($course->id, "1")) {
+            if (!$summatives = assess_type::get_assess_type_records_by_courseid($course->id, 1)) {
                 continue;
             }
 
@@ -311,10 +308,7 @@ class block_my_feedback extends block_base {
             $template->feedback[] = $feedback;
         }
 
-        if ($template->feedback) {
-            return $template->feedback;
-        }
-        return null;
+        return $template->feedback ?: null;
     }
 
     /**
