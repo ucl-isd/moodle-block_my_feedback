@@ -226,7 +226,7 @@ class block_my_feedback extends block_base {
      */
     public function duedate_in_range(int $duedate): ?int {
         // Only show dates within a month.
-        $past = strtotime('-1 month');
+        $past = strtotime('-2 month');
         $future = strtotime('+1 month');
         // If due date is too far in the future.
         if ($duedate > $future) {
