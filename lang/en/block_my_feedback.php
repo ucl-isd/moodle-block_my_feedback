@@ -31,5 +31,5 @@
  $string['pluginname'] = 'My feedback';
  $string['privacy:metadata'] = 'My Feedback does not store any personal data.';
  $string['t:due'] = "Due";
- $string['t:requiremarking'] = "require marking";
+ $string['t:needmarking'] = "need marking";
 

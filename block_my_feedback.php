@@ -245,9 +245,6 @@ class block_my_feedback extends block_base {
      * Return users 5 most recent feedbacks.
      * @param stdClass $user
      * @return array feedback items.
-     * @throws coding_exception
-     * @throws dml_exception
-     * @throws moodle_exception
      */
     public function fetch_feedback($user): ?array {
         global $DB;
