@@ -212,7 +212,8 @@ class block_my_feedback extends block_base {
             if ($course->enddate == 0) {
                 return true; // Enddate is set to 0 when no end date, show course.
             }
-            if (time() > $course->enddate) {
+            $future = strtotime('+3 month'); // Allow for Late summer assessments.
+            if ($future > $course->enddate) {
                 return false; // After the end date.
             }
         }
