@@ -16,7 +16,7 @@
 
 use core\context\user;
 use core_course\external\course_summary_exporter;
-use local_assess_type\assess_type; // TODO - add in requires...
+use local_assess_type\assess_type; // UCL plugin.
 use mod_quiz\question\display_options;
 
 /**
