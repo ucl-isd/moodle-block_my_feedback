@@ -15,68 +15,55 @@
     @template blocks_my_feedback/content
     Example context (json):
     {
-        "allfeedbackurl": "cgf/intervalurl/",
-        "nofeedback": 0,
-        "feedback": [
+        "showfeedbacktrackerlink": "true",
+        "mods": [
          {
             "icon": "moodleurl/icon.png",
             "coursename": "A course",
+            "name": "A mod",
+            "url": "/foo/",
+            "duedate": "10th Jan 2023",
             "tutorname": "Bob Smith",
             "date": "24th March 2023"
+            "requiremarking": "3",
          },
-         {
-            "icon": "moodleurl/icon.png",
-            "coursename": "A course",
-            "tutorname": "Rob Smith",
-            "date": "24th April 2023"
-         }
         ]
 
     }
 }}
 
-{{! TODO - Lots of duplication here, can we use the same template for marking and feedback? }}
-{{#marking}}
+{{! Mods for feedback and marking. }}
+{{#mods}}
 <div class="d-flex">
 
     <div class="mr-3 bg-cover bg-light rounded-circle flex-shrink-0" style="background-image: url('{{{icon}}}'); height: 4rem; width: 4rem;"></div>
 
     <div>
         <div class="line-clamp-1 text-muted">
-            <small>{{{coursename}}}</small>
+            <small>{{coursename}}</small>
         </div>
-        <a href="{{url}}" class="font-weight-bold">{{{name}}}</a>
+        <a href="{{{url}}}" class="font-weight-bold">{{name}}</a>
+        {{#duedate}}
         <div>
             <small>{{#str}} t:due, block_my_feedback {{/str}} {{duedate}}</small>
         </div>
+        {{/duedate}}
     </div>
 </div>
 
-<div class='text-right'>
-    <small><a href="{{{markingurl}}}">{{requiremarking}} {{#str}} t:needmarking, block_my_feedback {{/str}}</a></small>
+<div class='text-right small'>
+    {{! Student. }}
+    {{#date}}
+        {{#tutorname}}{{.}} · {{/tutorname}} {{date}}
+    {{/date}}
+
+    {{! Admin. }}
+    {{#requiremarking}}
+        <a href="{{{markingurl}}}">{{requiremarking}} {{#str}} t:needmarking, block_my_feedback {{/str}}</a>
+    {{/requiremarking}}
 </div>
 <hr>
-{{/marking}}
-
-
-{{#feedback}}
-<div class="d-flex">
-
-    <div class="mr-3 bg-cover rounded-circle flex-shrink-0" style="background-image: url('{{{icon}}}'); height: 4rem; width: 4rem;"></div>
-
-    <div>
-        <div class="line-clamp-1 text-muted">
-            <small>{{coursename}}</small>
-        </div>
-        <a href="{{{link}}}" class="font-weight-bold">{{activityname}}</a>
-    </div>
-</div>
-
-<div class='text-right'>
-    <small>{{#tutorname}}{{.}} · {{/tutorname}} {{date}}</small>
-</div>
-<hr>
-{{/feedback}}
+{{/mods}}
 
 {{#showfeedbacktrackerlink}}
 <div class="bg-light pt-2 pb-3 px-3">

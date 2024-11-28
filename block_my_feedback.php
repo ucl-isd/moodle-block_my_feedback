@@ -64,20 +64,38 @@ class block_my_feedback extends block_base {
 
         if (self::is_teacher()) {
             // Teacher content.
-            $template->marking = $this->fetch_marking($USER);
+            $template->mods = $this->fetch_marking($USER);
         } else {
             // Student content.
-            $template->feedback = $this->fetch_feedback($USER);
+            $template->mods = $this->fetch_feedback($USER);
             $template->showfeedbacktrackerlink = true;
         }
 
-        if (isset($template->feedback) || isset($template->marking)) {
+        if (isset($template->mods)) {
             $this->content->text = $OUTPUT->render_from_template('block_my_feedback/content', $template);
         }
 
         return $this->content;
     }
 
+    /**
+     * Return if user has archetype editingteacher.
+     *
+     */
+    public static function is_teacher(): bool {
+        global $DB, $USER;
+        // Get id's from role where archetype is editingteacher.
+        $roles = $DB->get_fieldset('role', 'id', ['archetype' => 'editingteacher']);
+
+        // Check if user has editingteacher role on any courses.
+        list($roles, $params) = $DB->get_in_or_equal($roles, SQL_PARAMS_NAMED);
+        $params['userid'] = $USER->id;
+        $sql = "SELECT id
+                FROM {role_assignments}
+                WHERE userid = :userid
+                AND roleid $roles";
+        return  $DB->record_exists_sql($sql, $params);
+    }
 
     /**
      * Return marking for a user.
@@ -106,6 +124,7 @@ class block_my_feedback extends block_base {
 
             $modinfo = get_fast_modinfo($course->id);
 
+            // Loop through assessments for this course.
             foreach ($summatives as $summative) {
 
                 // Check this is a course mod.
@@ -212,8 +231,9 @@ class block_my_feedback extends block_base {
             if ($course->enddate == 0) {
                 return true; // Enddate is set to 0 when no end date, show course.
             }
-            $future = strtotime('+3 month'); // Allow for Late summer assessments.
-            if ($future > $course->enddate) {
+            // Show course 3 months after end date to allow for UCL late summer assessments.
+            $cutoffdate = strtotime('+3 month');
+            if ($course->enddate > $cutoffdate) {
                 return false; // After the end date.
             }
         }
@@ -226,15 +246,15 @@ class block_my_feedback extends block_base {
      * @param int $duedate
      */
     public function duedate_in_range(int $duedate): ?int {
-        // Only show dates within a month.
-        $past = strtotime('-2 month');
-        $future = strtotime('+1 month');
-        // If due date is too far in the future.
-        if ($duedate > $future) {
+        // Only show dates within UCL limits for marking.
+        $startdate = strtotime('-2 month');
+        $cutoffdate = strtotime('+1 month');
+        // If due date is beyond cutoff.
+        if ($duedate > $cutoffdate) {
             return false;
         }
         // If due date is too far in the past.
-        if ($duedate < $past) {
+        if ($duedate < $startdate) {
             return false;
         }
         return $duedate;
@@ -276,8 +296,8 @@ class block_my_feedback extends block_base {
             $feedback = new stdClass();
             $feedback->id = $f->gradeid;
             $feedback->date = date('jS F', $f->lastmodified);
-            $feedback->activityname = $f->name;
-            $feedback->link = new moodle_url('/mod/'.$f->modname.'/view.php', ['id' => $f->cmid]);
+            $feedback->name = $f->name;
+            $feedback->url = new moodle_url('/mod/'.$f->modname.'/view.php', ['id' => $f->cmid]);
 
             // Course.
             $course = $DB->get_record('course', ['id' => $f->course]);
@@ -394,26 +414,6 @@ class block_my_feedback extends block_base {
         }
 
         return false;
-    }
-
-    /**
-     * Return if user has archetype editingteacher.
-     *
-     */
-    public static function is_teacher(): bool {
-        global $DB, $USER;
-
-        // Get id's from role where archetype is editingteacher.
-        $roles = $DB->get_fieldset('role', 'id', ['archetype' => 'editingteacher']);
-
-        // Check if user has editingteacher role on any courses.
-        list($roles, $params) = $DB->get_in_or_equal($roles, SQL_PARAMS_NAMED);
-        $params['userid'] = $USER->id;
-        $sql = "SELECT id
-                FROM {role_assignments}
-                WHERE userid = :userid
-                AND roleid $roles";
-        return  $DB->record_exists_sql($sql, $params);
     }
 
     /**
