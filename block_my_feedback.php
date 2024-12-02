@@ -38,7 +38,7 @@ class block_my_feedback extends block_base {
 
         if (!isset($USER->firstname)) {
             $this->title = get_string('pluginname', 'block_my_feedback');
-        } else if (self::is_teacher()) {
+        } else if ($this->is_teacher()) {
             $this->title = get_string('markingfor', 'block_my_feedback').' '.$USER->firstname;
         } else {
             $this->title = get_string('feedbackfor', 'block_my_feedback').' '.$USER->firstname;
@@ -62,7 +62,7 @@ class block_my_feedback extends block_base {
 
         $template = new stdClass();
 
-        if (self::is_teacher()) {
+        if ($this->is_teacher()) {
             // Teacher content.
             $template->mods = $this->fetch_marking($USER);
         } else {
@@ -114,11 +114,11 @@ class block_my_feedback extends block_base {
                 continue;
             }
             // Skip none current course.
-            if (!self::is_course_current($course)) {
+            if (!$this->is_course_current($course)) {
                 continue;
             }
             // Skip if no summative assessments.
-            if (!$summatives = assess_type::get_assess_type_records_by_courseid($course->id, 1)) {
+            if (!$summatives = assess_type::get_assess_type_records_by_courseid($course->id, assess_type::ASSESS_TYPE_SUMMATIVE)) {
                 continue;
             }
 
@@ -128,7 +128,7 @@ class block_my_feedback extends block_base {
             foreach ($summatives as $summative) {
 
                 // Check this is a course mod.
-                if (isset($summative->cmid)) {
+                if ($summative->cmid != 0) {
                     $cmid = $summative->cmid;
                     $mod = $modinfo->get_cm($cmid);
 
@@ -142,7 +142,7 @@ class block_my_feedback extends block_base {
                     $assess->cmid = $cmid;
                     $assess->modname = $mod->modname;
                     // Get due date and require marking.
-                    $assess = self::get_mod_data($mod, $assess);
+                    $assess = $this->get_mod_data($mod, $assess);
 
                     // Check mod has require marking (only set when there is a due date).
                     if (isset($assess->requiremarking)) {
@@ -173,19 +173,19 @@ class block_my_feedback extends block_base {
      *
      * TODO - turnitin, quiz.
      *
-     * @param stdClass $mod
+     * @param cm_info $mod
      * @param stdClass $assess
      */
-    public function get_mod_data($mod, $assess) {
+    public function get_mod_data($mod, $assess): ?stdClass {
         global $CFG;
-        // Mods have different feilds for due date, and require marking.
+        // Mods have different fields for due date, and require marking.
         switch ($mod->modname) {
             case 'assign':
 
                 // Check mod due date is relevant.
-                $duedate = self::duedate_in_range($mod->customdata['duedate']);
+                $duedate = $this->duedate_in_range($mod->customdata['duedate']);
                 if (!$duedate) {
-                    return false;
+                    return null;
                 }
 
                 // Add dates.
@@ -198,20 +198,21 @@ class block_my_feedback extends block_base {
                 $assignment = new assign($context, $mod, $mod->course);
                 $assess->requiremarking = $assignment->count_submissions_need_grading();
                 if (!$assess->requiremarking) {
-                    return false;
+                    return null;
                 }
                 $assess->markingurl = new moodle_url('/mod/'. $mod->modname. '/view.php',
                     ['id' => $assess->cmid, 'action' => 'grader']
                 );
+
                 // Return template data.
                 return $assess;
 
             // TODO - quiz - 'timeclose' ?.
             case 'quiz':
-                return false;
+                return null;
             // TODO - turnitin.
             default:
-                return false;
+                return null;
         }
     }
 
@@ -231,10 +232,10 @@ class block_my_feedback extends block_base {
             if ($course->enddate == 0) {
                 return true; // Enddate is set to 0 when no end date, show course.
             }
-            // Show course 3 months after end date to allow for UCL late summer assessments.
-            $cutoffdate = strtotime('+3 month');
-            if ($course->enddate > $cutoffdate) {
-                return false; // After the end date.
+            // Return false if enddate has passed.
+            // Note - UCL add 3 mouths for late summer assessments, where course can end before assessments are due.
+            if (time() > strtotime('+3 month', $course->enddate)) {
+                return false;
             }
         }
         return true; // All good, show course.
@@ -247,7 +248,7 @@ class block_my_feedback extends block_base {
      */
     public function duedate_in_range(int $duedate): ?int {
         // Only show dates within UCL limits for marking.
-        $startdate = strtotime('-2 month');
+        $startdate = strtotime('-2 month'); // Longer time to try retain overdue marking at the top.
         $cutoffdate = strtotime('+1 month');
         // If due date is beyond cutoff.
         if ($duedate > $cutoffdate) {
