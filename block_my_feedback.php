@@ -232,8 +232,8 @@ class block_my_feedback extends block_base {
             if ($course->enddate == 0) {
                 return true; // Enddate is set to 0 when no end date, show course.
             }
-            // Return false if enddate has passed.
-            // Note - UCL add 3 mouths for late summer assessments, where course can end before assessments are due.
+            // Past course enddate.
+            // Note - UCL add 3 mouths for late summer assessments, so course can end before assessments are due.
             if (time() > strtotime('+3 month', $course->enddate)) {
                 return false;
             }
@@ -250,11 +250,11 @@ class block_my_feedback extends block_base {
         // Only show dates within UCL limits for marking.
         $startdate = strtotime('-2 month'); // Longer time to try retain overdue marking at the top.
         $cutoffdate = strtotime('+1 month');
-        // If due date is beyond cutoff.
+        // If duedate is beyond cutoff.
         if ($duedate > $cutoffdate) {
             return false;
         }
-        // If due date is too far in the past.
+        // If duedate is too far in the past.
         if ($duedate < $startdate) {
             return false;
         }
