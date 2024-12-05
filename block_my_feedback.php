@@ -38,7 +38,7 @@ class block_my_feedback extends block_base {
 
         if (!isset($USER->firstname)) {
             $this->title = get_string('pluginname', 'block_my_feedback');
-        } else if ($this->is_teacher()) {
+        } else if (self::is_teacher()) {
             $this->title = get_string('markingfor', 'block_my_feedback').' '.$USER->firstname;
         } else {
             $this->title = get_string('feedbackfor', 'block_my_feedback').' '.$USER->firstname;
@@ -62,7 +62,7 @@ class block_my_feedback extends block_base {
 
         $template = new stdClass();
 
-        if ($this->is_teacher()) {
+        if (self::is_teacher()) {
             // Teacher content.
             $template->mods = $this->fetch_marking($USER);
         } else {
@@ -183,7 +183,7 @@ class block_my_feedback extends block_base {
             case 'assign':
 
                 // Check mod due date is relevant.
-                $duedate = $this->duedate_in_range($mod->customdata['duedate']);
+                $duedate = self::duedate_in_range($mod->customdata['duedate']);
                 if (!$duedate) {
                     return null;
                 }
@@ -221,7 +221,7 @@ class block_my_feedback extends block_base {
      *
      * @param stdClass $course
      */
-    public function is_course_current(stdClass $course): bool {
+    public static function is_course_current(stdClass $course): bool {
         // Start date.
         if ($course->startdate > time()) {
             return false; // Before the start date.
@@ -246,7 +246,7 @@ class block_my_feedback extends block_base {
      *
      * @param int $duedate
      */
-    public function duedate_in_range(int $duedate): ?int {
+    public static function duedate_in_range(int $duedate): ?int {
         // Only show dates within UCL limits for marking.
         $startdate = strtotime('-2 month'); // Longer time to try retain overdue marking at the top.
         $cutoffdate = strtotime('+1 month');
