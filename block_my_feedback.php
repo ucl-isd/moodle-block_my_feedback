@@ -114,7 +114,7 @@ class block_my_feedback extends block_base {
                 continue;
             }
             // Skip none current course.
-            if (!$this->is_course_current($course)) {
+            if (!self::is_course_current($course)) {
                 continue;
             }
             // Skip if no summative assessments.
