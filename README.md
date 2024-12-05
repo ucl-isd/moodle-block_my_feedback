@@ -4,7 +4,7 @@ This block shows students recent feedback across moodle courses.
 
 It currently supports assignment, quiz, and turnitin.
 
-It outputs some UCL specific elements which you can remove from mustahce template.
+It outputs some UCL specific elements which you can remove from mustache template.
 
 # Version 2.0
 
