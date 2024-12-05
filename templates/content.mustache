@@ -43,24 +43,21 @@
         </div>
         <a href="{{{url}}}" class="font-weight-bold">{{name}}</a>
         {{#duedate}}
-        <div>
-            <small>{{#str}} t:due, block_my_feedback {{/str}} {{duedate}}</small>
+        <div class="small">
+            {{#str}} t:due, block_my_feedback {{/str}} {{duedate}}
+            {{#requiremarking}}
+            · <a href="{{{markingurl}}}">{{requiremarking}} {{#str}} t:needmarking, block_my_feedback {{/str}}</a>
+            {{/requiremarking}}
         </div>
         {{/duedate}}
     </div>
 </div>
 
+{{#date}}
 <div class='text-right small'>
-    {{! Student. }}
-    {{#date}}
-        {{#tutorname}}{{.}} · {{/tutorname}} {{date}}
-    {{/date}}
-
-    {{! Admin. }}
-    {{#requiremarking}}
-        <a href="{{{markingurl}}}">{{requiremarking}} {{#str}} t:needmarking, block_my_feedback {{/str}}</a>
-    {{/requiremarking}}
+    {{#tutorname}}{{.}} · {{/tutorname}} {{date}}
 </div>
+{{/date}}
 <hr>
 {{/mods}}
 
