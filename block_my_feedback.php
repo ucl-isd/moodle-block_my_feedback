@@ -64,7 +64,7 @@ class block_my_feedback extends block_base {
 
         if (self::is_teacher()) {
             // Teacher content.
-            $template->mods = $this->fetch_marking($USER);
+            $template->mods = self::fetch_marking($USER);
         } else {
             // Student content.
             $template->mods = $this->fetch_feedback($USER);
@@ -102,7 +102,7 @@ class block_my_feedback extends block_base {
      *
      * @param stdClass $user
      */
-    public function fetch_marking(stdClass $user): ?array {
+    public static function fetch_marking(stdClass $user): ?array {
         // User courses.
         $courses = enrol_get_all_users_courses($user->id, false, ['enddate']);
         // Marking.
@@ -142,7 +142,7 @@ class block_my_feedback extends block_base {
                     $assess->cmid = $cmid;
                     $assess->modname = $mod->modname;
                     // Get due date and require marking.
-                    $assess = $this->get_mod_data($mod, $assess);
+                    $assess = self::get_mod_data($mod, $assess);
 
                     // Check mod has require marking (only set when there is a due date).
                     if (isset($assess->requiremarking)) {
@@ -176,7 +176,7 @@ class block_my_feedback extends block_base {
      * @param cm_info $mod
      * @param stdClass $assess
      */
-    public function get_mod_data($mod, $assess): ?stdClass {
+    public static function get_mod_data($mod, $assess): ?stdClass {
         global $CFG;
         // Mods have different fields for due date, and require marking.
         switch ($mod->modname) {
