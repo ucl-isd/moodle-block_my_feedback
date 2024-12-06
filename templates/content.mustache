@@ -41,7 +41,8 @@
         <div class="line-clamp-1 text-muted">
             <small>{{coursename}}</small>
         </div>
-        <a href="{{{url}}}" class="font-weight-bold">{{name}}</a>
+        <a href="{{{url}}}" class="font-weight-bold line-clamp-2">{{name}}</a>
+
         {{#duedate}}
         <div class="small">
             {{#str}} t:due, block_my_feedback {{/str}} {{duedate}}
@@ -50,14 +51,14 @@
             {{/requiremarking}}
         </div>
         {{/duedate}}
+
+        {{#date}}
+        <div class="small">
+            {{#tutorname}}{{.}} · {{/tutorname}} {{date}}
+         </div>
+         {{/date}}
     </div>
 </div>
-
-{{#date}}
-<div class='text-right small'>
-    {{#tutorname}}{{.}} · {{/tutorname}} {{date}}
-</div>
-{{/date}}
 <hr>
 {{/mods}}
 
