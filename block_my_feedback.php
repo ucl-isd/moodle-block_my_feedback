@@ -190,7 +190,7 @@ class block_my_feedback extends block_base {
 
                 // Add dates.
                 $assess->unixtimestamp = $duedate;
-                $assess->duedate = date('jS F y', $duedate);
+                $assess->duedate = date('jS M', $duedate);
 
                 // Require marking.
                 require_once($CFG->dirroot.'/mod/assign/locallib.php');
@@ -296,7 +296,7 @@ class block_my_feedback extends block_base {
 
             $feedback = new stdClass();
             $feedback->id = $f->gradeid;
-            $feedback->date = date('jS F', $f->lastmodified);
+            $feedback->releaseddate = date('jS M', $f->lastmodified);
             $feedback->name = $f->name;
             $feedback->url = new moodle_url('/mod/'.$f->modname.'/view.php', ['id' => $f->cmid]);
 
