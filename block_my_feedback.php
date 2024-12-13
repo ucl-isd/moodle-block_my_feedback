@@ -123,14 +123,27 @@ class block_my_feedback extends block_base {
             }
 
             $modinfo = get_fast_modinfo($course->id);
+            $mods = $modinfo->get_cms();
+            // Mod ids array to check cmid exists.
+            $cmids = [];
+            foreach ($mods as $mod) {
+                $cmids[] = $mod->id;
+            }
 
             // Loop through assessments for this course.
             foreach ($summatives as $summative) {
 
                 // Check this is a course mod.
                 if ($summative->cmid != 0) {
+                    // Skip mods where cmid is not in the course.
+                    if (!in_array($summative->cmid, $cmids)) {
+                        continue;
+                    }
+
+                    // Begin to build mod data for template.
                     $cmid = $summative->cmid;
                     $mod = $modinfo->get_cm($cmid);
+
 
                     // Skip hidden mods.
                     if (!$mod->visible) {
