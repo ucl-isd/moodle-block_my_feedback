@@ -18,6 +18,7 @@ use core\context\user;
 use core_course\external\course_summary_exporter;
 use local_assess_type\assess_type; // UCL plugin.
 use mod_quiz\question\display_options;
+use report_feedback_tracker\local\admin as feedback_tracker; // UCL plugin.
 
 /**
  * Block definition class for the block_my_feedback plugin.
@@ -103,68 +104,75 @@ class block_my_feedback extends block_base {
      * @param stdClass $user
      */
     public static function fetch_marking(stdClass $user): ?array {
+        global $DB;
         // User courses.
         $courses = enrol_get_all_users_courses($user->id, false, ['enddate']);
         // Marking.
         $marking = [];
 
         foreach ($courses as $course) {
-            // Skip hidden courses.
-            if (!$course->visible) {
+            // Skip hidden or non-current courses.
+            if (!$course->visible || !self::is_course_current($course)) {
                 continue;
             }
-            // Skip none current course.
-            if (!self::is_course_current($course)) {
-                continue;
-            }
+
             // Skip if no summative assessments.
             if (!$summatives = assess_type::get_assess_type_records_by_courseid($course->id, assess_type::ASSESS_TYPE_SUMMATIVE)) {
                 continue;
             }
 
+            // Get course mod ids.
             $modinfo = get_fast_modinfo($course->id);
             $mods = $modinfo->get_cms();
-            // Mod ids array to check cmid exists.
-            $cmids = [];
-            foreach ($mods as $mod) {
-                $cmids[] = $mod->id;
-            }
+            $cmids = array_column($mods, 'id');
 
             // Loop through assessments for this course.
             foreach ($summatives as $summative) {
 
-                // Check this is a course mod.
-                if ($summative->cmid != 0) {
-                    // Skip mods where cmid is not in the course.
-                    if (!in_array($summative->cmid, $cmids)) {
-                        continue;
+                // Skip if not a course module or cmid doesn't exist.
+                if ($summative->cmid == 0 || !in_array($summative->cmid, $cmids)) {
+                    continue;
+                }
+
+                // Begin to build mod data for template.
+                $cmid = $summative->cmid;
+                $mod = $modinfo->get_cm($cmid);
+
+                // Skip hidden mods.
+                if (!$mod->visible) {
+                    continue;
+                }
+
+                // Template.
+                $assess = new stdClass;
+                $assess->cmid = $cmid;
+                $assess->modname = $mod->modname;
+                $assess->name = $mod->name;
+                $assess->coursename = $course->fullname;
+                $assess->url = new moodle_url('/mod/'. $mod->modname. '/view.php', ['id' => $cmid]);
+                // TODO - is this expensive?
+                // If so should we only do it once we know we want to display it?
+                $assess->icon = course_summary_exporter::get_course_image($course);
+
+                // Turnitin.
+                if ($assess->modname === 'turnitintooltwo') {
+                    // Fetch parts.
+                    $turnitinparts = $DB->get_records('turnitintooltwo_parts', ['turnitintooltwoid' => $mod->instance]);
+                    foreach ($turnitinparts as $turnitinpart) {
+                        $turnitin = clone $assess;
+                        if ($turnitin->partid = $turnitinpart->id) {
+                            // Check mod has duedate and require marking.
+                            if (!is_null($turnitin = self::get_mod_data($mod, $turnitin))) {
+                                $turnitin->name = $mod->name . ' ' . $turnitinpart->partname;
+                                $marking[] = $turnitin;
+                            }
+                        }
                     }
-
-                    // Begin to build mod data for template.
-                    $cmid = $summative->cmid;
-                    $mod = $modinfo->get_cm($cmid);
-
-                    // Skip hidden mods.
-                    if (!$mod->visible) {
-                        continue;
-                    }
-
-                    // Template.
-                    $assess = new stdClass;
-                    $assess->cmid = $cmid;
-                    $assess->modname = $mod->modname;
-                    // Get due date and require marking.
-                    $assess = self::get_mod_data($mod, $assess);
-
-                    // Check mod has require marking (only set when there is a due date).
-                    if (isset($assess->requiremarking)) {
-                        // TODO - what is expensive here that we can do after sort and limit?
-                        $assess->name = $mod->name;
-                        $assess->coursename = $course->fullname;
-                        $assess->url = new moodle_url('/mod/'. $mod->modname. '/view.php', ['id' => $cmid]);
-                        $assess->icon = course_summary_exporter::get_course_image($course);
+                } else {
+                    // Check mod has duedate and require marking.
+                    if (!is_null($assess = self::get_mod_data($mod, $assess))) {
                         $marking[] = $assess;
-                    }
+                    };
                 }
             }
         }
@@ -183,50 +191,37 @@ class block_my_feedback extends block_base {
     /**
      * Return mod data - due date & require marking.
      *
-     * TODO - turnitin, quiz.
-     *
      * @param cm_info $mod
      * @param stdClass $assess
      */
     public static function get_mod_data($mod, $assess): ?stdClass {
-        global $CFG;
-        // Mods have different fields for due date, and require marking.
-        switch ($mod->modname) {
-            case 'assign':
+        global $CFG, $DB;
 
-                // Check mod has custom data, due date, and due date is in range.
-                if (!$mod->customdata || !isset($mod->customdata['duedate'])
-                || !self::duedate_in_range($mod->customdata['duedate'])) {
-                    return null;
-                }
-
-                // Add dates.
-                $duedate = $mod->customdata['duedate'];
-                $assess->unixtimestamp = $duedate;
-                $assess->duedate = date('jS M', $duedate);
-
-                // Require marking.
-                require_once($CFG->dirroot.'/mod/assign/locallib.php');
-                $context = context_module::instance($mod->id);
-                $assignment = new assign($context, $mod, $mod->course);
-                $assess->requiremarking = $assignment->count_submissions_need_grading();
-                if (!$assess->requiremarking) {
-                    return null;
-                }
-                $assess->markingurl = new moodle_url('/mod/'. $mod->modname. '/view.php',
-                    ['id' => $assess->cmid, 'action' => 'grader']
-                );
-
-                // Return template data.
-                return $assess;
-
-            // TODO - quiz - 'timeclose' ?.
-            case 'quiz':
-                return null;
-            // TODO - turnitin.
-            default:
-                return null;
+        // Get duedate.
+        if ($mod->modname === 'turnitintooltwo') {
+            $duedate = $DB->get_field('turnitintooltwo_parts', 'dtdue', ['id' => $assess->partid], );
+            $duedate = $record->dtdue;
+        } else {
+            $duedate = feedback_tracker::get_duedate($mod);
         }
+
+        // Return null if no duedate or no marking.
+        // TODO - seems off to include this here, rather than in count_missing_grades..
+        require_once($CFG->dirroot.'/mod/assign/locallib.php');
+        if (!$duedate || !$assess->requiremarking = feedback_tracker::count_missing_grades($mod)) {
+            return null;
+        }
+
+        // Add date for sorting and human readable output.
+        $assess->unixtimestamp = $duedate;
+        $assess->duedate = date('jS M', $duedate);
+
+        // Marking url.
+        $assess->markingurl = new moodle_url('/mod/'. $mod->modname. '/view.php',
+            ['id' => $assess->cmid, 'action' => 'grader']);
+
+        // Return template data.
+        return $assess;
     }
 
     /**
@@ -235,23 +230,19 @@ class block_my_feedback extends block_base {
      * @param stdClass $course
      */
     public static function is_course_current(stdClass $course): bool {
-        // Start date.
+        // Check if the course has started.
         if ($course->startdate > time()) {
-            return false; // Before the start date.
+            return false;
         }
 
-        // End date.
-        if (isset($course->enddate)) {
-            if ($course->enddate == 0) {
-                return true; // Enddate is set to 0 when no end date, show course.
-            }
-            // Past course enddate.
-            // Note - UCL add 3 mouths for late summer assessments, so course can end before assessments are due.
-            if (time() > strtotime('+3 month', $course->enddate)) {
-                return false;
-            }
+        // Check if the course has ended (with a 3-month grace period).
+        if (isset($course->enddate) &&
+            $course->enddate != 0 && time() > strtotime('+3 month', $course->enddate)) {
+            return false;
         }
-        return true; // All good, show course.
+
+        // Course is within the valid date range.
+        return true;
     }
 
     /**
@@ -260,17 +251,13 @@ class block_my_feedback extends block_base {
      * @param int $duedate
      */
     public static function duedate_in_range(int $duedate): ?int {
-        // Only show dates within UCL limits for marking.
-        $startdate = strtotime('-2 month'); // Longer time to try retain overdue marking at the top.
+        $startdate = strtotime('-2 month');
         $cutoffdate = strtotime('+1 month');
-        // If duedate is beyond cutoff.
-        if ($duedate > $cutoffdate) {
-            return false;
+
+        if ($duedate < $startdate || $duedate > $cutoffdate) {
+            return null;
         }
-        // If duedate is too far in the past.
-        if ($duedate < $startdate) {
-            return false;
-        }
+
         return $duedate;
     }
 
@@ -349,7 +336,6 @@ class block_my_feedback extends block_base {
      * @param stdClass $user
      * @return array
      * @throws coding_exception
-     * @throws dml_exception
      */
     public function get_submissions($user) {
         global $DB;
@@ -408,7 +394,6 @@ class block_my_feedback extends block_base {
      *
      * @param stdClass $submission
      * @return bool
-     * @throws dml_exception
      */
     public function show_quiz_submission(stdClass $submission): bool {
         global $DB;
