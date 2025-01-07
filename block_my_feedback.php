@@ -144,7 +144,6 @@ class block_my_feedback extends block_base {
                     $cmid = $summative->cmid;
                     $mod = $modinfo->get_cm($cmid);
 
-
                     // Skip hidden mods.
                     if (!$mod->visible) {
                         continue;
