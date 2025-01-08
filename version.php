@@ -31,5 +31,6 @@ $plugin->requires  = 2024100700;            // Requires at least Moodle version 
 $plugin->component = 'block_my_feedback';   // Full name of the plugin (used for diagnostics).
 $plugin->dependencies = [
     'local_assess_type' => 2024091300,
+    'report_feedback_tracker' => 2025010600,
 ];
 
