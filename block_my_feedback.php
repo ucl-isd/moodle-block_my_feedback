@@ -40,7 +40,7 @@ class block_my_feedback extends block_base {
         if (!isset($USER->firstname)) {
             $this->title = get_string('pluginname', 'block_my_feedback');
         } else if (self::is_teacher()) {
-            $this->title = get_string('markingfor', 'block_my_feedback').' '.$USER->firstname;
+            $this->title = get_string('markingfor', 'block_my_feedback').' '.$USER->firstname.':';
         } else {
             $this->title = get_string('feedbackfor', 'block_my_feedback').' '.$USER->firstname;
         }
