@@ -195,7 +195,7 @@ class block_my_feedback extends block_base {
             case 'assign':
 
                 // Check mod has custom data, due date, and due date is in range.
-                if (!$mod->customdata || !$mod->customdata['duedate'] || !self::duedate_in_range($mod->customdata['duedate'])) {
+                if (!$mod->customdata || !isset($mod->customdata['duedate']) || !self::duedate_in_range($mod->customdata['duedate'])) {
                     return null;
                 }
 
