@@ -194,13 +194,13 @@ class block_my_feedback extends block_base {
         switch ($mod->modname) {
             case 'assign':
 
-                // Check mod due date is relevant.
-                $duedate = self::duedate_in_range($mod->customdata['duedate']);
-                if (!$duedate) {
+                // Check mod has custom data, due date, and due date is in range.
+                if (!$mod->customdata || !$mod->customdata['duedate'] || !self::duedate_in_range($mod->customdata['duedate'])) {
                     return null;
                 }
 
                 // Add dates.
+                $duedate = $mod->customdata['duedate'];
                 $assess->unixtimestamp = $duedate;
                 $assess->duedate = date('jS M', $duedate);
 
