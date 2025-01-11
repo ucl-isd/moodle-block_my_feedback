@@ -200,7 +200,6 @@ class block_my_feedback extends block_base {
         // Get duedate.
         if ($mod->modname === 'turnitintooltwo') {
             $duedate = $DB->get_field('turnitintooltwo_parts', 'dtdue', ['id' => $assess->partid], );
-            $duedate = $record->dtdue;
         } else {
             $duedate = feedback_tracker::get_duedate($mod);
         }
