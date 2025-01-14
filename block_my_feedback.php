@@ -157,7 +157,7 @@ class block_my_feedback extends block_base {
                 // Turnitin.
                 if ($assess->modname === 'turnitintooltwo') {
                     // Fetch parts.
-                    $turnitinparts = $DB->get_records('turnitintooltwo_parts', ['turnitintooltwoid' => $mod->instance]);
+                    $turnitinparts = \report_feedback_tracker\local\helper::get_turnitin_parts($mod->instance);
                     foreach ($turnitinparts as $turnitinpart) {
                         $turnitin = clone $assess;
                         if ($turnitin->partid = $turnitinpart->id) {
