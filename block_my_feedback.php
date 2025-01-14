@@ -216,8 +216,7 @@ class block_my_feedback extends block_base {
         $assess->duedate = date('jS M', $duedate);
 
         // Marking url.
-        $assess->markingurl = new moodle_url('/mod/'. $mod->modname. '/view.php',
-            ['id' => $assess->cmid, 'action' => 'grader']);
+        $assess->markingurl = feedback_tracker::get_markingurl($mod);
 
         // Return template data.
         return $assess;
