@@ -204,6 +204,10 @@ class block_my_feedback extends block_base {
             $duedate = feedback_tracker::get_duedate($mod);
         }
 
+        if ($duedate === 0) {
+            return false;
+        }
+
         // Get the grade item associated with the module.
         require_once($CFG->libdir . '/gradelib.php');
         $gradeitem = grade_item::fetch([
@@ -217,11 +221,11 @@ class block_my_feedback extends block_base {
         // Return null if no duedate or no marking.
         // TODO - seems off to include this here, rather than in count_missing_grades..
         require_once($CFG->dirroot.'/mod/assign/locallib.php');
-        if (!$duedate || !$assess->requiremarking = feedback_tracker::count_missing_grades($gradeitem, $mod)) {
+        if (!$assess->requiremarking = feedback_tracker::count_missing_grades($gradeitem, $mod)) {
             return false;
         }
 
-        // Add date for sorting and human readable output.
+        // Add date for sorting and human-readable output.
         $assess->unixtimestamp = $duedate;
         $assess->duedate = date('jS M', $duedate);
 
