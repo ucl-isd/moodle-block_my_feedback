@@ -204,7 +204,8 @@ class block_my_feedback extends block_base {
             $duedate = feedback_tracker::get_duedate($mod);
         }
 
-        if ($duedate === 0) {
+        // Check mod has due date, and due date is in range.
+        if (($duedate === 0) || (!self::duedate_in_range($duedate))) {
             return false;
         }
 
