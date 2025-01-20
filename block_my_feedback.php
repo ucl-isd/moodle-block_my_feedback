@@ -229,7 +229,6 @@ class block_my_feedback extends block_base {
         $assess->unixtimestamp = $duedate;
         $assess->duedate = date('jS M', $duedate);
 
-        // Marking url.
         $assess->markingurl = feedback_tracker::get_markingurl($mod);
 
         // Return template data.
