@@ -160,17 +160,16 @@ class block_my_feedback extends block_base {
                     $turnitinparts = \report_feedback_tracker\local\helper::get_turnitin_parts($mod->instance);
                     foreach ($turnitinparts as $turnitinpart) {
                         $turnitin = clone $assess;
-                        if ($turnitin->partid = $turnitinpart->id) {
-                            // Check mod has duedate and require marking.
-                            if (!is_null($turnitin = self::get_mod_data($mod, $turnitin))) {
-                                $turnitin->name = $mod->name . ' ' . $turnitinpart->partname;
-                                $marking[] = $turnitin;
-                            }
+                        $turnitin->partid = $turnitinpart->id;
+                        // Check mod has duedate and require marking.
+                        if (self::add_mod_data($mod, $turnitin)) {
+                            $turnitin->name = $mod->name . ' ' . $turnitinpart->partname;
+                            $marking[] = $turnitin;
                         }
                     }
                 } else {
                     // Check mod has duedate and require marking.
-                    if (!is_null($assess = self::get_mod_data($mod, $assess))) {
+                    if (self::add_mod_data($mod, $assess)) {
                         $marking[] = $assess;
                     }
                 }
@@ -193,8 +192,9 @@ class block_my_feedback extends block_base {
      *
      * @param cm_info $mod
      * @param stdClass $assess
+     * @return bool
      */
-    public static function get_mod_data($mod, $assess): ?stdClass {
+    public static function add_mod_data(cm_info $mod, stdClass $assess): bool {
         global $CFG, $DB;
 
         // Get duedate.
@@ -218,7 +218,7 @@ class block_my_feedback extends block_base {
         // TODO - seems off to include this here, rather than in count_missing_grades..
         require_once($CFG->dirroot.'/mod/assign/locallib.php');
         if (!$duedate || !$assess->requiremarking = feedback_tracker::count_missing_grades($gradeitem, $mod)) {
-            return null;
+            return false;
         }
 
         // Add date for sorting and human readable output.
@@ -229,7 +229,7 @@ class block_my_feedback extends block_base {
         $assess->markingurl = feedback_tracker::get_markingurl($mod);
 
         // Return template data.
-        return $assess;
+        return true;
     }
 
     /**
