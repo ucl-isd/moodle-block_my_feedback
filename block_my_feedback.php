@@ -172,7 +172,7 @@ class block_my_feedback extends block_base {
                     // Check mod has duedate and require marking.
                     if (!is_null($assess = self::get_mod_data($mod, $assess))) {
                         $marking[] = $assess;
-                    };
+                    }
                 }
             }
         }
