@@ -211,7 +211,7 @@ class block_my_feedback extends block_base {
             'itemmodule' => $mod->modname,
             'iteminstance' => $mod->instance,
             'itemnumber' => 0,
-            'courseid' => $mod->course
+            'courseid' => $mod->course,
         ]);
 
         // Return null if no duedate or no marking.
