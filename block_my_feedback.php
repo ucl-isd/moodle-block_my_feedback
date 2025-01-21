@@ -169,7 +169,8 @@ class block_my_feedback extends block_base {
                     }
                 } else {
                     // Check mod has duedate and require marking.
-                    if (self::add_mod_data($mod, $assess)) {
+                    if (\report_feedback_tracker\local\helper::is_supported_module($mod->modname) &&
+                            self::add_mod_data($mod, $assess)) {
                         $marking[] = $assess;
                     }
                 }
