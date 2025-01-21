@@ -209,20 +209,8 @@ class block_my_feedback extends block_base {
             return false;
         }
 
-        // Get the grade item associated with the module.
-        require_once($CFG->libdir . '/gradelib.php');
-        $gradeitem = grade_item::fetch([
-            'itemtype' => 'mod',
-            'itemmodule' => $mod->modname,
-            'iteminstance' => $mod->instance,
-            'itemnumber' => 0,
-            'courseid' => $mod->course,
-        ]);
-
         // Return null if no duedate or no marking.
-        // TODO - seems off to include this here, rather than in count_missing_grades..
-        require_once($CFG->dirroot.'/mod/assign/locallib.php');
-        if (!$assess->requiremarking = feedback_tracker::count_missing_grades($gradeitem, $mod)) {
+        if (!$assess->requiremarking = feedback_tracker::count_missing_grades($mod)) {
             return false;
         }
 
