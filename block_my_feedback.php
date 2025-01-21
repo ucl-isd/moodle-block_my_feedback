@@ -206,7 +206,7 @@ class block_my_feedback extends block_base {
         }
 
         // Check mod has due date, and due date is in range.
-        if (($duedate === 0) || (!self::duedate_in_range($duedate))) {
+        if (($duedate === 0) || !self::duedate_in_range($duedate)) {
             return false;
         }
 
