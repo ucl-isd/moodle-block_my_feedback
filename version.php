@@ -24,12 +24,13 @@
 
 defined('MOODLE_INTERNAL') || die();
 
-$plugin->version   = 2024112800;            // The current plugin version (Date: YYYYMMDDXX).
+$plugin->version   = 2025011300;            // The current plugin version (Date: YYYYMMDDXX).
 $plugin->release   = '2.0';
 $plugin->maturity  = MATURITY_ALPHA;
 $plugin->requires  = 2024100700;            // Requires at least Moodle version 4.2.
 $plugin->component = 'block_my_feedback';   // Full name of the plugin (used for diagnostics).
 $plugin->dependencies = [
     'local_assess_type' => 2024091300,
+    'report_feedback_tracker' => 2025010600,
 ];
 
