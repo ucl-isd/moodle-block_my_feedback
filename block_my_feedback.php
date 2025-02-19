@@ -18,7 +18,8 @@ use core\context\user;
 use core_course\external\course_summary_exporter;
 use local_assess_type\assess_type; // UCL plugin.
 use mod_quiz\question\display_options;
-use report_feedback_tracker\local\admin as feedback_tracker; // UCL plugin.
+use report_feedback_tracker\local\admin as feedback_tracker_admin; // UCL plugin admin class.
+use report_feedback_tracker\local\helper as feedback_tracker_helper; // UCL plugin helper class.
 
 /**
  * Block definition class for the block_my_feedback plugin.
@@ -37,9 +38,11 @@ class block_my_feedback extends block_base {
     public function init() {
         global $USER;
 
+        $studentview = optional_param('student', null, PARAM_INT);
+
         if (!isset($USER->firstname)) {
             $this->title = get_string('pluginname', 'block_my_feedback');
-        } else if (self::is_teacher()) {
+        } else if (feedback_tracker_helper::is_teacher() && ! $studentview) {
             $this->title = get_string('markingfor', 'block_my_feedback').' '.$USER->firstname;
         } else {
             $this->title = get_string('feedbackfor', 'block_my_feedback').' '.$USER->firstname;
@@ -52,7 +55,7 @@ class block_my_feedback extends block_base {
      * @return stdClass The block content.
      */
     public function get_content(): stdClass {
-        global $OUTPUT, $USER;
+        global $OUTPUT, $PAGE, $USER;
 
         if ($this->content !== null) {
             return $this->content;
@@ -63,13 +66,23 @@ class block_my_feedback extends block_base {
 
         $template = new stdClass();
 
-        if (self::is_teacher()) {
+        $studentview = optional_param('student', null, PARAM_INT);
+
+        if (feedback_tracker_helper::is_teacher() && !$studentview) {
             // Teacher content.
             $template->mods = self::fetch_marking($USER);
+            // If the user has a student role too, show a link to the student content.
+            if (self::is_student()) {
+                $template->studenturl = $PAGE->url . '?student=1';
+            }
         } else {
             // Student content.
             $template->mods = $this->fetch_feedback($USER);
             $template->showfeedbacktrackerlink = true;
+            // If user has a teacher role too, show a link to the teacher content.
+            if (feedback_tracker_helper::is_teacher()) {
+                $template->markerurl = $PAGE->url;
+            }
         }
 
         if (isset($template->mods)) {
@@ -80,15 +93,15 @@ class block_my_feedback extends block_base {
     }
 
     /**
-     * Return if user has archetype editingteacher.
+     * Return if user has archetype student.
      *
      */
-    public static function is_teacher(): bool {
+    public static function is_student(): bool {
         global $DB, $USER;
         // Get id's from role where archetype is editingteacher.
-        $roles = $DB->get_fieldset('role', 'id', ['archetype' => 'editingteacher']);
+        $roles = $DB->get_fieldset('role', 'id', ['archetype' => 'student']);
 
-        // Check if user has editingteacher role on any courses.
+        // Check if user has student role on any courses.
         list($roles, $params) = $DB->get_in_or_equal($roles, SQL_PARAMS_NAMED);
         $params['userid'] = $USER->id;
         $sql = "SELECT id
@@ -104,15 +117,15 @@ class block_my_feedback extends block_base {
      * @param stdClass $user
      */
     public static function fetch_marking(stdClass $user): ?array {
-        global $DB;
         // User courses.
         $courses = enrol_get_all_users_courses($user->id, false, ['enddate']);
         // Marking.
         $marking = [];
 
         foreach ($courses as $course) {
-            // Skip hidden or non-current courses.
-            if (!$course->visible || !self::is_course_current($course)) {
+            // Skip hidden or non-current courses or courses the user has no teacher role in.
+            if (!$course->visible || !self::is_course_current($course) ||
+                    !feedback_tracker_helper::is_teacher($course)) {
                 continue;
             }
 
@@ -157,7 +170,7 @@ class block_my_feedback extends block_base {
                 // Turnitin.
                 if ($assess->modname === 'turnitintooltwo') {
                     // Fetch parts.
-                    $turnitinparts = \report_feedback_tracker\local\helper::get_turnitin_parts($mod->instance);
+                    $turnitinparts = feedback_tracker_helper::get_turnitin_parts($mod->instance);
                     foreach ($turnitinparts as $turnitinpart) {
                         $turnitin = clone $assess;
                         $turnitin->partid = $turnitinpart->id;
@@ -169,7 +182,7 @@ class block_my_feedback extends block_base {
                     }
                 } else {
                     // Check mod has duedate and require marking.
-                    if (\report_feedback_tracker\local\helper::is_supported_module($mod->modname) &&
+                    if (feedback_tracker_helper::is_supported_module($mod->modname) &&
                             self::add_mod_data($mod, $assess)) {
                         $marking[] = $assess;
                     }
@@ -178,14 +191,10 @@ class block_my_feedback extends block_base {
         }
 
         // Sort and return data.
-        if ($marking) {
-            usort($marking, function ($a, $b) {
-                return $a->unixtimestamp <=> $b->unixtimestamp;
-            });
-
-            return array_slice($marking, 0, 5);
-        }
-        return null;
+        usort($marking, function ($a, $b) {
+            return $a->unixtimestamp <=> $b->unixtimestamp;
+        });
+        return array_slice($marking, 0, 5);
     }
 
     /**
@@ -196,13 +205,13 @@ class block_my_feedback extends block_base {
      * @return bool
      */
     public static function add_mod_data(cm_info $mod, stdClass $assess): bool {
-        global $CFG, $DB;
+        global $DB;
 
         // Get duedate.
         if ($mod->modname === 'turnitintooltwo') {
             $duedate = $DB->get_field('turnitintooltwo_parts', 'dtdue', ['id' => $assess->partid], );
         } else {
-            $duedate = feedback_tracker::get_duedate($mod);
+            $duedate = feedback_tracker_admin::get_duedate($mod);
         }
 
         // Check mod has due date, and due date is in range.
@@ -211,7 +220,7 @@ class block_my_feedback extends block_base {
         }
 
         // Return null if no duedate or no marking.
-        if (!$assess->requiremarking = feedback_tracker::count_missing_grades($mod)) {
+        if (!$assess->requiremarking = feedback_tracker_admin::count_missing_grades($mod)) {
             return false;
         }
 
@@ -219,7 +228,7 @@ class block_my_feedback extends block_base {
         $assess->unixtimestamp = $duedate;
         $assess->duedate = date('jS M', $duedate);
 
-        $assess->markingurl = feedback_tracker::get_markingurl($mod);
+        $assess->markingurl = feedback_tracker_admin::get_markingurl($mod);
 
         // Return template data.
         return true;
