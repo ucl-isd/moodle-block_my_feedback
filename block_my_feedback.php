@@ -37,9 +37,11 @@ class block_my_feedback extends block_base {
     public function init() {
         global $USER;
 
+        $studentview = optional_param('student', null, PARAM_INT);
+
         if (!isset($USER->firstname)) {
             $this->title = get_string('pluginname', 'block_my_feedback');
-        } else if (self::is_teacher()) {
+        } else if (report_feedback_tracker\local\helper::is_teacher() && ! $studentview) {
             $this->title = get_string('markingfor', 'block_my_feedback').' '.$USER->firstname;
         } else {
             $this->title = get_string('feedbackfor', 'block_my_feedback').' '.$USER->firstname;
@@ -52,7 +54,7 @@ class block_my_feedback extends block_base {
      * @return stdClass The block content.
      */
     public function get_content(): stdClass {
-        global $OUTPUT, $USER;
+        global $OUTPUT, $PAGE, $USER;
 
         if ($this->content !== null) {
             return $this->content;
@@ -63,13 +65,23 @@ class block_my_feedback extends block_base {
 
         $template = new stdClass();
 
-        if (self::is_teacher()) {
+        $studentview = optional_param('student', null, PARAM_INT);
+
+        if (report_feedback_tracker\local\helper::is_teacher() && !$studentview) {
             // Teacher content.
             $template->mods = self::fetch_marking($USER);
+            // If the user has a student role too, show a link to the student content.
+            if (self::is_student()) {
+                $template->studenturl = $PAGE->url . '?student=1';
+            }
         } else {
             // Student content.
             $template->mods = $this->fetch_feedback($USER);
             $template->showfeedbacktrackerlink = true;
+            // If user has a teacher role too, show a link to the teacher content.
+            if (report_feedback_tracker\local\helper::is_teacher()) {
+                $template->markerurl = $PAGE->url;
+            }
         }
 
         if (isset($template->mods)) {
@@ -80,15 +92,15 @@ class block_my_feedback extends block_base {
     }
 
     /**
-     * Return if user has archetype editingteacher.
+     * Return if user has archetype student.
      *
      */
-    public static function is_teacher(): bool {
+    public static function is_student(): bool {
         global $DB, $USER;
         // Get id's from role where archetype is editingteacher.
-        $roles = $DB->get_fieldset('role', 'id', ['archetype' => 'editingteacher']);
+        $roles = $DB->get_fieldset('role', 'id', ['archetype' => 'student']);
 
-        // Check if user has editingteacher role on any courses.
+        // Check if user has student role on any courses.
         list($roles, $params) = $DB->get_in_or_equal($roles, SQL_PARAMS_NAMED);
         $params['userid'] = $USER->id;
         $sql = "SELECT id

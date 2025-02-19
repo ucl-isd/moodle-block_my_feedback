@@ -31,6 +31,18 @@
     }
 }}
 
+{{! Link to student view }}
+{{#studenturl}}
+    <div><a href="{{.}}">Student view</a></div>
+    <hr>
+{{/studenturl}}
+
+{{! Link to marker view }}
+{{#markerurl}}
+    <div><a href="{{.}}">Marker view</a></div>
+    <hr>
+{{/markerurl}}
+
 {{! Mods for feedback and marking. }}
 {{#mods}}
 <div class="d-flex">
