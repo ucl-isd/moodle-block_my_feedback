@@ -123,14 +123,19 @@ class block_my_feedback extends block_base {
         $marking = [];
 
         foreach ($courses as $course) {
-            // Skip hidden or non-current courses or courses the user has no teacher role in.
-            if (!$course->visible || !self::is_course_current($course) ||
-                    !feedback_tracker_helper::is_teacher($course)) {
+            // Skip hidden or non-current courses.
+            if (!$course->visible || !self::is_course_current($course)) {
+                continue;
+            }
+
+            // Skip if user has no teacher role in the course.
+            if (!feedback_tracker_helper::is_teacher($course)) {
                 continue;
             }
 
             // Skip if no summative assessments.
-            if (!$summatives = assess_type::get_assess_type_records_by_courseid($course->id, assess_type::ASSESS_TYPE_SUMMATIVE)) {
+            if (!$summatives = assess_type::get_assess_type_records_by_courseid($course->id,
+                    assess_type::ASSESS_TYPE_SUMMATIVE)) {
                 continue;
             }
 
