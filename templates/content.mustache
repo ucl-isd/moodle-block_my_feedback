@@ -32,15 +32,31 @@
 }}
 
 {{! Link to student view }}
+{{#sitereporturl}}
+    <div>
+        <p>
+            <i class="icon fa-solid fa-repeat"></i>
+            <a href="{{.}}">{{#str}} sitereport, report_feedback_tracker {{/str}}</a>
+        </p>
+    </div>
+{{/sitereporturl}}
 {{#studenturl}}
-    <div><a href="{{.}}">Student view</a></div>
-    <hr>
+    <div>
+        <p>
+            <i class="icon fa-solid fa-repeat"></i>
+            <a href="{{.}}">{{#str}} assessmentview, block_my_feedback {{/str}}</a>
+        </p>
+    </div>
 {{/studenturl}}
 
 {{! Link to marker view }}
 {{#markerurl}}
-    <div><a href="{{.}}">Marker view</a></div>
-    <hr>
+    <div>
+        <p>
+            <i class="icon fa-solid fa-repeat"></i>
+            <a href="{{.}}">{{#str}} markerview, block_my_feedback {{/str}}</a>
+        </p>
+    </div>
 {{/markerurl}}
 
 {{! Mods for feedback and marking. }}

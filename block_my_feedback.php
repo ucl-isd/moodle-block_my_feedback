@@ -38,14 +38,14 @@ class block_my_feedback extends block_base {
     public function init() {
         global $USER;
 
-        $studentview = optional_param('student', null, PARAM_INT);
+        $markerview = optional_param('marker', null, PARAM_INT);
 
         if (!isset($USER->firstname)) {
             $this->title = get_string('pluginname', 'block_my_feedback');
-        } else if (feedback_tracker_helper::is_teacher() && ! $studentview) {
-            $this->title = get_string('markingfor', 'block_my_feedback').' '.$USER->firstname;
-        } else {
+        } else if (self::is_student() && !$markerview) {
             $this->title = get_string('feedbackfor', 'block_my_feedback').' '.$USER->firstname;
+        } else {
+            $this->title = get_string('markingfor', 'block_my_feedback').' '.$USER->firstname;
         }
     }
 
@@ -66,21 +66,22 @@ class block_my_feedback extends block_base {
 
         $template = new stdClass();
 
-        $studentview = optional_param('student', null, PARAM_INT);
+        $markerview = optional_param('marker', null, PARAM_INT);
 
-        if (feedback_tracker_helper::is_teacher() && !$studentview && $template->mods = self::fetch_marking($USER)) {
-            // Teacher content.
-            // If the user has a student role too and has some feedback, show a link to the student content.
-            if (self::is_student() && $this->fetch_feedback($USER)) {
-                $template->studenturl = $PAGE->url . '?student=1';
-            }
-        } else {
+        if (self::is_student() && !$markerview) {
             // Student content.
             $template->mods = $this->fetch_feedback($USER);
             $template->showfeedbacktrackerlink = true;
             // If user has a teacher role and some markings to do, show a link to the teacher content.
             if (feedback_tracker_helper::is_teacher() && self::fetch_marking($USER)) {
-                $template->markerurl = $PAGE->url;
+                $template->markerurl = $PAGE->url . '?marker=1';
+            }
+        } else {
+            // Teacher content.
+            $template->mods = self::fetch_marking($USER);
+            // If the user has a student role too and has some feedback, show a link to the student content.
+            if (self::is_student() && $this->fetch_feedback($USER)) {
+                $template->studenturl = $PAGE->url;
             }
         }
 
