@@ -68,19 +68,18 @@ class block_my_feedback extends block_base {
 
         $studentview = optional_param('student', null, PARAM_INT);
 
-        if (feedback_tracker_helper::is_teacher() && !$studentview) {
+        if (feedback_tracker_helper::is_teacher() && !$studentview && $template->mods = self::fetch_marking($USER)) {
             // Teacher content.
-            $template->mods = self::fetch_marking($USER);
-            // If the user has a student role too, show a link to the student content.
-            if (self::is_student()) {
+            // If the user has a student role too and has some feedback, show a link to the student content.
+            if (self::is_student() && $this->fetch_feedback($USER)) {
                 $template->studenturl = $PAGE->url . '?student=1';
             }
         } else {
             // Student content.
             $template->mods = $this->fetch_feedback($USER);
             $template->showfeedbacktrackerlink = true;
-            // If user has a teacher role too, show a link to the teacher content.
-            if (feedback_tracker_helper::is_teacher()) {
+            // If user has a teacher role and some markings to do, show a link to the teacher content.
+            if (feedback_tracker_helper::is_teacher() && self::fetch_marking($USER)) {
                 $template->markerurl = $PAGE->url;
             }
         }
