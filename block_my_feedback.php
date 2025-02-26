@@ -39,7 +39,7 @@ class block_my_feedback extends block_base {
 
         if (!isset($USER->firstname)) {
             $this->title = get_string('pluginname', 'block_my_feedback');
-        } else if (self::is_teacher()) {
+        } else if (self::is_marker()) {
             $this->title = get_string('markingfor', 'block_my_feedback').' '.$USER->firstname;
         } else {
             $this->title = get_string('feedbackfor', 'block_my_feedback').' '.$USER->firstname;
@@ -63,8 +63,8 @@ class block_my_feedback extends block_base {
 
         $template = new stdClass();
 
-        if (self::is_teacher()) {
-            // Teacher content.
+        if (self::is_marker()) {
+            // Marker content.
             $template->mods = self::fetch_marking($USER);
         } else {
             // Student content.
@@ -80,22 +80,46 @@ class block_my_feedback extends block_base {
     }
 
     /**
-     * Return if user has archetype editingteacher.
+     * Return if user has required marker role at all or optional in given course.
      *
+     * @param stdClass|null $course
+     * @return bool
      */
-    public static function is_teacher(): bool {
+    public static function is_marker(stdClass|null $course = null): bool {
         global $DB, $USER;
-        // Get id's from role where archetype is editingteacher.
-        $roles = $DB->get_fieldset('role', 'id', ['archetype' => 'editingteacher']);
+        // Get id's from role.
+        $params = [
+            'role1' => 'ucltutor',
+            'role2' => 'uclnoneditingtutor',
+            'role3' => 'uclnoneditingtutor_noemail',
+            'role4' => 'uclleader',
+        ];
+        $roles = $DB->get_fieldset_select('role', 'id',
+            'shortname IN (:role1, :role2, :role3, :role4)', $params);
 
-        // Check if user has editingteacher role on any courses.
-        list($roles, $params) = $DB->get_in_or_equal($roles, SQL_PARAMS_NAMED);
-        $params['userid'] = $USER->id;
-        $sql = "SELECT id
+        if (!$roles) {
+            return false;
+        }
+
+        if ($course) {
+            // Check if user has expected role in the given course.
+            foreach ($roles as $role) {
+                if (user_has_role_assignment($USER->id, (int) $role, $course->ctxid)) {
+                    return true;
+                }
+            }
+            return false;
+
+        } else {
+            // Check if user has editingteacher role on any courses.
+            list($roles, $params) = $DB->get_in_or_equal($roles, SQL_PARAMS_NAMED);
+            $params['userid'] = $USER->id;
+            $sql = "SELECT id
                 FROM {role_assignments}
                 WHERE userid = :userid
                 AND roleid $roles";
-        return  $DB->record_exists_sql($sql, $params);
+            return $DB->record_exists_sql($sql, $params);
+        }
     }
 
     /**
