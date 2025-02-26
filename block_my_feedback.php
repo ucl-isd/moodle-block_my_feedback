@@ -140,6 +140,11 @@ class block_my_feedback extends block_base {
                 continue;
             }
 
+            // Skip if user has no teacher role in the course.
+            if (!self::is_marker($course)) {
+                continue;
+            }
+
             // Skip if no summative assessments.
             if (!$summatives = assess_type::get_assess_type_records_by_courseid($course->id, assess_type::ASSESS_TYPE_SUMMATIVE)) {
                 continue;
