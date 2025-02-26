@@ -32,35 +32,72 @@
 }}
 
 {{! Mods for feedback and marking. }}
-{{#mods}}
-<div class="d-flex">
+{{#showassessments}}
+    <h3>{{assessmentheader}}</h3>
+    {{#assessmentmods}}
 
-    <div class="mr-3 bg-cover bg-light rounded-circle flex-shrink-0" style="background-image: url('{{{icon}}}'); height: 4rem; width: 4rem;"></div>
+        <div class="d-flex">
 
-    <div>
-        <div class="line-clamp-1 text-muted">
-            <small>{{coursename}}</small>
+            <div class="mr-3 bg-cover bg-light rounded-circle flex-shrink-0" style="background-image: url('{{{icon}}}'); height: 4rem; width: 4rem;"></div>
+
+            <div>
+                <div class="line-clamp-1 text-muted">
+                    <small>{{coursename}}</small>
+                </div>
+                <a href="{{{url}}}" class="font-weight-bold line-clamp-2">{{name}}</a>
+
+                {{#duedate}}
+                    <div class="small">
+                        {{#str}} t:due, block_my_feedback {{/str}} {{duedate}}
+                        {{#requiremarking}}
+                            · <a href="{{{markingurl}}}">{{requiremarking}} {{#str}} t:needmarking, block_my_feedback {{/str}}</a>
+                        {{/requiremarking}}
+                    </div>
+                {{/duedate}}
+
+                {{#releaseddate}}
+                    <div class="small">
+                        {{#tutorname}}{{.}} · {{/tutorname}} {{releaseddate}}
+                    </div>
+                {{/releaseddate}}
+            </div>
         </div>
-        <a href="{{{url}}}" class="font-weight-bold line-clamp-2">{{name}}</a>
+        <hr>
+    {{/assessmentmods}}
+{{/showassessments}}
 
-        {{#duedate}}
-        <div class="small">
-            {{#str}} t:due, block_my_feedback {{/str}} {{duedate}}
-            {{#requiremarking}}
-            · <a href="{{{markingurl}}}">{{requiremarking}} {{#str}} t:needmarking, block_my_feedback {{/str}}</a>
-            {{/requiremarking}}
+{{#showmarkings}}
+    <h3>{{markingheader}}</h3>
+    {{#markingmods}}
+        <div class="d-flex">
+
+            <div class="mr-3 bg-cover bg-light rounded-circle flex-shrink-0" style="background-image: url('{{{icon}}}'); height: 4rem; width: 4rem;"></div>
+
+            <div>
+                <div class="line-clamp-1 text-muted">
+                    <small>{{coursename}}</small>
+                </div>
+                <a href="{{{url}}}" class="font-weight-bold line-clamp-2">{{name}}</a>
+
+                {{#duedate}}
+                    <div class="small">
+                        {{#str}} t:due, block_my_feedback {{/str}} {{duedate}}
+                        {{#requiremarking}}
+                            · <a href="{{{markingurl}}}">{{requiremarking}} {{#str}} t:needmarking, block_my_feedback {{/str}}</a>
+                        {{/requiremarking}}
+                    </div>
+                {{/duedate}}
+
+                {{#releaseddate}}
+                    <div class="small">
+                        {{#tutorname}}{{.}} · {{/tutorname}} {{releaseddate}}
+                    </div>
+                {{/releaseddate}}
+            </div>
         </div>
-        {{/duedate}}
-
-        {{#releaseddate}}
-        <div class="small">
-            {{#tutorname}}{{.}} · {{/tutorname}} {{releaseddate}}
-         </div>
-         {{/releaseddate}}
-    </div>
-</div>
-<hr>
-{{/mods}}
+        <hr>
+    {{/markingmods}}
+{{/showmarkings}}
 
 {{#showfeedbacktrackerlink}}
 <div class="bg-light pt-2 pb-3 px-3">

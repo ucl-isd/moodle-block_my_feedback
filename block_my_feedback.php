@@ -50,13 +50,8 @@ class block_my_feedback extends block_base {
         self::$markerroles = self::get_marker_role_ids();
         self::$ismarker = self::is_marker();
 
-        if (!isset($USER->firstname)) {
-            $this->title = get_string('pluginname', 'block_my_feedback');
-        } else if (self::$ismarker) {
-            $this->title = get_string('markingfor', 'block_my_feedback').' '.$USER->firstname;
-        } else {
-            $this->title = get_string('feedbackfor', 'block_my_feedback').' '.$USER->firstname;
-        }
+        // No title for the block as each section will have one.
+        $this->title = '';
     }
 
     /**
@@ -95,16 +90,20 @@ class block_my_feedback extends block_base {
 
         $template = new stdClass();
 
-        if (self::$ismarker) {
-            // Marker content.
-            $template->mods = self::fetch_marking($USER);
-        } else {
-            // Student content.
-            $template->mods = $this->fetch_feedback($USER);
-            $template->showfeedbacktrackerlink = true;
+        // Marker content.
+        if (self::$ismarker && $template->markingmods = self::fetch_marking($USER)) {
+            $template->showmarkings = true;
+            $template->markingheader = get_string('markingfor', 'block_my_feedback').' '.$USER->firstname;
         }
 
-        if (isset($template->mods)) {
+        // Student content.
+        if (self::is_student() && $template->assessmentmods = $this->fetch_feedback($USER)) {
+            $template->showfeedbacktrackerlink = true;
+            $template->showassessments = true;
+            $template->assessmentheader = get_string('feedbackfor', 'block_my_feedback').' '.$USER->firstname;
+        }
+
+        if (isset($template->markingmods) || isset($template->assessmentmods)) {
             $this->content->text = $OUTPUT->render_from_template('block_my_feedback/content', $template);
         }
 
@@ -139,16 +138,50 @@ class block_my_feedback extends block_base {
      * @param stdClass $course
      * @return bool
      */
-    private static function is_course_marker(stdClass $course): bool {
+    private static function is_course_marker(stdClass $course): bool
+    {
         global $USER;
 
         // Check if user has a merker role in the given course.
         foreach (self::$markerroles as $role) {
-            if (user_has_role_assignment($USER->id, (int) $role, $course->ctxid)) {
+            if (user_has_role_assignment($USER->id, (int)$role, $course->ctxid)) {
                 return true;
             }
         }
         return false;
+    }
+
+    /**
+     * Return if user has archetype student.
+     *
+     * @param stdClass|null $course
+     * @return bool
+     */
+    public static function is_student(stdClass|null $course = null): bool {
+        global $DB, $USER;
+        // Get id's from role where archetype is student.
+        $params = ['role1' => 'student'];
+        $roles = $DB->get_fieldset_select('role', 'id', 'archetype = :role1', $params);
+
+        if ($course) {
+            // Check if user has expected role in the given course.
+            foreach ($roles as $role) {
+                if (user_has_role_assignment($USER->id, (int) $role, $course->ctxid)) {
+                    return true;
+                }
+            }
+            return false;
+
+        } else {
+            // Check if user has editingteacher role on any courses.
+            list($roles, $params) = $DB->get_in_or_equal($roles, SQL_PARAMS_NAMED);
+            $params['userid'] = $USER->id;
+            $sql = "SELECT id
+                FROM {role_assignments}
+                WHERE userid = :userid
+                AND roleid $roles";
+            return $DB->record_exists_sql($sql, $params);
+        }
     }
 
     /**
