@@ -30,6 +30,16 @@ use report_feedback_tracker\local\admin as feedback_tracker; // UCL plugin.
 class block_my_feedback extends block_base {
 
     /**
+     * @var array array of roles a marker may have.
+     */
+    private static array $markerroles;
+
+    /**
+     * @var bool marker status.
+     */
+    private static bool $ismarker;
+
+    /**
      * Initialises the block.
      *
      * @return void
@@ -37,13 +47,35 @@ class block_my_feedback extends block_base {
     public function init() {
         global $USER;
 
+        self::$markerroles = self::get_marker_role_ids();
+        self::$ismarker = self::is_marker();
+
         if (!isset($USER->firstname)) {
             $this->title = get_string('pluginname', 'block_my_feedback');
-        } else if (self::is_marker()) {
+        } else if (self::$ismarker) {
             $this->title = get_string('markingfor', 'block_my_feedback').' '.$USER->firstname;
         } else {
             $this->title = get_string('feedbackfor', 'block_my_feedback').' '.$USER->firstname;
         }
+    }
+
+    /**
+     * Get the marker role IDs.
+     *
+     * @return array
+     */
+    private static function get_marker_role_ids(): array {
+        global $DB;
+
+        return $DB->get_fieldset_select('role', 'id',
+            'shortname IN (:role1, :role2, :role3, :role4)',
+            [
+                'role1' => 'ucltutor',
+                'role2' => 'uclnoneditingtutor',
+                'role3' => 'uclnoneditingtutor_noemail',
+                'role4' => 'uclleader',
+            ]
+        );
     }
 
     /**
@@ -63,7 +95,7 @@ class block_my_feedback extends block_base {
 
         $template = new stdClass();
 
-        if (self::is_marker()) {
+        if (self::$ismarker) {
             // Marker content.
             $template->mods = self::fetch_marking($USER);
         } else {
@@ -85,21 +117,9 @@ class block_my_feedback extends block_base {
      * @param stdClass|null $course
      * @return bool
      */
-    public static function is_marker(stdClass|null $course = null): bool {
+    private static function is_marker(stdClass|null $course = null): bool {
         global $DB, $USER;
-        // Get id's from role.
-        $params = [
-            'role1' => 'ucltutor',
-            'role2' => 'uclnoneditingtutor',
-            'role3' => 'uclnoneditingtutor_noemail',
-            'role4' => 'uclleader',
-        ];
-        $roles = $DB->get_fieldset_select('role', 'id',
-            'shortname IN (:role1, :role2, :role3, :role4)', $params);
-
-        if (!$roles) {
-            return false;
-        }
+        $roles = self::$markerroles;
 
         if ($course) {
             // Check if user has expected role in the given course.
@@ -111,6 +131,10 @@ class block_my_feedback extends block_base {
             return false;
 
         } else {
+            if (!$roles) {
+                return false;
+            }
+
             // Check if user has editingteacher role on any courses.
             list($roles, $params) = $DB->get_in_or_equal($roles, SQL_PARAMS_NAMED);
             $params['userid'] = $USER->id;
