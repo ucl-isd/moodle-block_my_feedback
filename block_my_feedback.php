@@ -35,9 +35,19 @@ class block_my_feedback extends block_base {
     private static array $markerroles;
 
     /**
+     * @var array array of roles a student may have.
+     */
+    private static array $studentroles;
+
+    /**
      * @var bool marker status.
      */
     private static bool $ismarker;
+
+    /**
+     * @var bool student status.
+     */
+    private static bool $isstudent;
 
     /**
      * Initialises the block.
@@ -45,10 +55,10 @@ class block_my_feedback extends block_base {
      * @return void
      */
     public function init() {
-        global $USER;
-
         self::$markerroles = self::get_marker_role_ids();
+        self::$studentroles = self::get_student_role_ids();
         self::$ismarker = self::is_marker();
+        self::$isstudent = self::is_student();
 
         // No title for the block as each section will have one.
         $this->title = '';
@@ -69,6 +79,22 @@ class block_my_feedback extends block_base {
                 'role2' => 'uclnoneditingtutor',
                 'role3' => 'uclnoneditingtutor_noemail',
                 'role4' => 'uclleader',
+            ]
+        );
+    }
+
+    /**
+     * Get the student role IDs.
+     *
+     * @return array
+     */
+    private static function get_student_role_ids(): array {
+        global $DB;
+
+        return $DB->get_fieldset_select('role', 'id',
+            'shortname IN (:role1)',
+            [
+                'role1' => 'student',
             ]
         );
     }
@@ -97,7 +123,7 @@ class block_my_feedback extends block_base {
         }
 
         // Student content.
-        if (self::is_student() && $template->assessmentmods = $this->fetch_feedback($USER)) {
+        if (self::$isstudent && $template->assessmentmods = $this->fetch_feedback($USER)) {
             $template->showfeedbacktrackerlink = true;
             $template->showassessments = true;
             $template->assessmentheader = get_string('feedbackfor', 'block_my_feedback').' '.$USER->firstname;
@@ -152,28 +178,15 @@ class block_my_feedback extends block_base {
     }
 
     /**
-     * Return if user has archetype student.
+     * Return if user has required student role at all.
      *
-     * @param stdClass|null $course
      * @return bool
      */
-    public static function is_student(stdClass|null $course = null): bool {
+    private static function is_student(): bool {
         global $DB, $USER;
-        // Get id's from role where archetype is student.
-        $params = ['role1' => 'student'];
-        $roles = $DB->get_fieldset_select('role', 'id', 'archetype = :role1', $params);
 
-        if ($course) {
-            // Check if user has expected role in the given course.
-            foreach ($roles as $role) {
-                if (user_has_role_assignment($USER->id, (int) $role, $course->ctxid)) {
-                    return true;
-                }
-            }
-            return false;
-
-        } else {
-            // Check if user has editingteacher role on any courses.
+        if ($roles = self::$studentroles) {
+            // Check if user has a student role on any courses.
             list($roles, $params) = $DB->get_in_or_equal($roles, SQL_PARAMS_NAMED);
             $params['userid'] = $USER->id;
             $sql = "SELECT id
@@ -181,6 +194,8 @@ class block_my_feedback extends block_base {
                 WHERE userid = :userid
                 AND roleid $roles";
             return $DB->record_exists_sql($sql, $params);
+        } else {
+            return false;
         }
     }
 
