@@ -112,29 +112,14 @@ class block_my_feedback extends block_base {
     }
 
     /**
-     * Return if user has required marker role at all or optional in given course.
+     * Return if user has required marker role at all.
      *
-     * @param stdClass|null $course
      * @return bool
      */
-    private static function is_marker(stdClass|null $course = null): bool {
+    private static function is_marker(): bool {
         global $DB, $USER;
-        $roles = self::$markerroles;
 
-        if ($course) {
-            // Check if user has expected role in the given course.
-            foreach ($roles as $role) {
-                if (user_has_role_assignment($USER->id, (int) $role, $course->ctxid)) {
-                    return true;
-                }
-            }
-            return false;
-
-        } else {
-            if (!$roles) {
-                return false;
-            }
-
+        if ($roles = self::$markerroles) {
             // Check if user has editingteacher role on any courses.
             list($roles, $params) = $DB->get_in_or_equal($roles, SQL_PARAMS_NAMED);
             $params['userid'] = $USER->id;
@@ -143,7 +128,31 @@ class block_my_feedback extends block_base {
                 WHERE userid = :userid
                 AND roleid $roles";
             return $DB->record_exists_sql($sql, $params);
+        } else {
+            return false;
         }
+    }
+
+    /**
+     * Return if user has required marker role in given course.
+     *
+     * @param stdClass $course
+     * @return bool
+     */
+    private static function is_course_marker(stdClass $course): bool {
+        global $USER;
+
+        if (!$course) {
+            return false;
+        }
+
+        // Check if user has a merker role in the given course.
+        foreach (self::$markerroles as $role) {
+            if (user_has_role_assignment($USER->id, (int) $role, $course->ctxid)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
@@ -165,7 +174,7 @@ class block_my_feedback extends block_base {
             }
 
             // Skip if user has no teacher role in the course.
-            if (!self::is_marker($course)) {
+            if (!self::is_course_marker($course)) {
                 continue;
             }
 
