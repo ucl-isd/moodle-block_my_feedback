@@ -30,6 +30,16 @@ use report_feedback_tracker\local\admin as feedback_tracker; // UCL plugin.
 class block_my_feedback extends block_base {
 
     /**
+     * @var array array of roles a marker may have.
+     */
+    private static array $markerroles;
+
+    /**
+     * @var bool marker status.
+     */
+    private static bool $ismarker;
+
+    /**
      * Initialises the block.
      *
      * @return void
@@ -37,13 +47,35 @@ class block_my_feedback extends block_base {
     public function init() {
         global $USER;
 
+        self::$markerroles = self::get_marker_role_ids();
+        self::$ismarker = self::is_marker();
+
         if (!isset($USER->firstname)) {
             $this->title = get_string('pluginname', 'block_my_feedback');
-        } else if (self::is_teacher()) {
+        } else if (self::$ismarker) {
             $this->title = get_string('markingfor', 'block_my_feedback').' '.$USER->firstname;
         } else {
             $this->title = get_string('feedbackfor', 'block_my_feedback').' '.$USER->firstname;
         }
+    }
+
+    /**
+     * Get the marker role IDs.
+     *
+     * @return array
+     */
+    private static function get_marker_role_ids(): array {
+        global $DB;
+
+        return $DB->get_fieldset_select('role', 'id',
+            'shortname IN (:role1, :role2, :role3, :role4)',
+            [
+                'role1' => 'ucltutor',
+                'role2' => 'uclnoneditingtutor',
+                'role3' => 'uclnoneditingtutor_noemail',
+                'role4' => 'uclleader',
+            ]
+        );
     }
 
     /**
@@ -63,8 +95,8 @@ class block_my_feedback extends block_base {
 
         $template = new stdClass();
 
-        if (self::is_teacher()) {
-            // Teacher content.
+        if (self::$ismarker) {
+            // Marker content.
             $template->mods = self::fetch_marking($USER);
         } else {
             // Student content.
@@ -80,22 +112,43 @@ class block_my_feedback extends block_base {
     }
 
     /**
-     * Return if user has archetype editingteacher.
+     * Return if user has required marker role at all.
      *
+     * @return bool
      */
-    public static function is_teacher(): bool {
+    private static function is_marker(): bool {
         global $DB, $USER;
-        // Get id's from role where archetype is editingteacher.
-        $roles = $DB->get_fieldset('role', 'id', ['archetype' => 'editingteacher']);
 
-        // Check if user has editingteacher role on any courses.
-        list($roles, $params) = $DB->get_in_or_equal($roles, SQL_PARAMS_NAMED);
-        $params['userid'] = $USER->id;
-        $sql = "SELECT id
+        if ($roles = self::$markerroles) {
+            // Check if user has editingteacher role on any courses.
+            list($roles, $params) = $DB->get_in_or_equal($roles, SQL_PARAMS_NAMED);
+            $params['userid'] = $USER->id;
+            $sql = "SELECT id
                 FROM {role_assignments}
                 WHERE userid = :userid
                 AND roleid $roles";
-        return  $DB->record_exists_sql($sql, $params);
+            return $DB->record_exists_sql($sql, $params);
+        } else {
+            return false;
+        }
+    }
+
+    /**
+     * Return if user has required marker role in given course.
+     *
+     * @param stdClass $course
+     * @return bool
+     */
+    private static function is_course_marker(stdClass $course): bool {
+        global $USER;
+
+        // Check if user has a merker role in the given course.
+        foreach (self::$markerroles as $role) {
+            if (user_has_role_assignment($USER->id, (int) $role, $course->ctxid)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
@@ -113,6 +166,11 @@ class block_my_feedback extends block_base {
         foreach ($courses as $course) {
             // Skip hidden or non-current courses.
             if (!$course->visible || !self::is_course_current($course)) {
+                continue;
+            }
+
+            // Skip if user has no teacher role in the course.
+            if (!self::is_course_marker($course)) {
                 continue;
             }
 
