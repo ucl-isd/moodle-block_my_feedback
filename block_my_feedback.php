@@ -142,10 +142,6 @@ class block_my_feedback extends block_base {
     private static function is_course_marker(stdClass $course): bool {
         global $USER;
 
-        if (!$course) {
-            return false;
-        }
-
         // Check if user has a merker role in the given course.
         foreach (self::$markerroles as $role) {
             if (user_has_role_assignment($USER->id, (int) $role, $course->ctxid)) {
