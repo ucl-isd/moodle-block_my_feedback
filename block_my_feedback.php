@@ -92,7 +92,7 @@ class block_my_feedback extends block_base {
         global $DB;
 
         return $DB->get_fieldset_select('role', 'id',
-            'shortname IN (:role1)',
+            'archetype IN (:role1)',
             [
                 'role1' => 'student',
             ]
