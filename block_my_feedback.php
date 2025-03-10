@@ -35,9 +35,19 @@ class block_my_feedback extends block_base {
     private static array $markerroles;
 
     /**
+     * @var array array of roles a student may have.
+     */
+    private static array $studentroles;
+
+    /**
      * @var bool marker status.
      */
     private static bool $ismarker;
+
+    /**
+     * @var bool student status.
+     */
+    private static bool $isstudent;
 
     /**
      * Initialises the block.
@@ -45,18 +55,13 @@ class block_my_feedback extends block_base {
      * @return void
      */
     public function init() {
-        global $USER;
-
         self::$markerroles = self::get_marker_role_ids();
+        self::$studentroles = self::get_student_role_ids();
         self::$ismarker = self::is_marker();
+        self::$isstudent = self::is_student();
 
-        if (!isset($USER->firstname)) {
-            $this->title = get_string('pluginname', 'block_my_feedback');
-        } else if (self::$ismarker) {
-            $this->title = get_string('markingfor', 'block_my_feedback').' '.$USER->firstname;
-        } else {
-            $this->title = get_string('feedbackfor', 'block_my_feedback').' '.$USER->firstname;
-        }
+        // No title for the block as each section will have one.
+        $this->title = '';
     }
 
     /**
@@ -79,6 +84,22 @@ class block_my_feedback extends block_base {
     }
 
     /**
+     * Get the student role IDs.
+     *
+     * @return array
+     */
+    private static function get_student_role_ids(): array {
+        global $DB;
+
+        return $DB->get_fieldset_select('role', 'id',
+            'archetype IN (:role1)',
+            [
+                'role1' => 'student',
+            ]
+        );
+    }
+
+    /**
      * Gets the block contents.
      *
      * @return stdClass The block content.
@@ -95,16 +116,20 @@ class block_my_feedback extends block_base {
 
         $template = new stdClass();
 
-        if (self::$ismarker) {
-            // Marker content.
-            $template->mods = self::fetch_marking($USER);
-        } else {
-            // Student content.
-            $template->mods = $this->fetch_feedback($USER);
-            $template->showfeedbacktrackerlink = true;
+        // Marker content.
+        if (self::$ismarker && $template->markingmods = self::fetch_marking($USER)) {
+            $template->showmarkings = true;
+            $template->markingheader = get_string('markingfor', 'block_my_feedback', $USER->firstname);
         }
 
-        if (isset($template->mods)) {
+        // Student content.
+        if (self::$isstudent && $template->assessmentmods = $this->fetch_feedback($USER)) {
+            $template->showfeedbacktrackerlink = true;
+            $template->showassessments = true;
+            $template->assessmentheader = get_string('feedbackfor', 'block_my_feedback', $USER->firstname);
+        }
+
+        if (isset($template->markingmods) || isset($template->assessmentmods)) {
             $this->content->text = $OUTPUT->render_from_template('block_my_feedback/content', $template);
         }
 
@@ -144,11 +169,33 @@ class block_my_feedback extends block_base {
 
         // Check if user has a merker role in the given course.
         foreach (self::$markerroles as $role) {
-            if (user_has_role_assignment($USER->id, (int) $role, $course->ctxid)) {
+            if (user_has_role_assignment($USER->id, (int)$role, $course->ctxid)) {
                 return true;
             }
         }
         return false;
+    }
+
+    /**
+     * Return if user has required student role at all.
+     *
+     * @return bool
+     */
+    private static function is_student(): bool {
+        global $DB, $USER;
+
+        if ($roles = self::$studentroles) {
+            // Check if user has a student role on any courses.
+            list($roles, $params) = $DB->get_in_or_equal($roles, SQL_PARAMS_NAMED);
+            $params['userid'] = $USER->id;
+            $sql = "SELECT id
+                FROM {role_assignments}
+                WHERE userid = :userid
+                AND roleid $roles";
+            return $DB->record_exists_sql($sql, $params);
+        } else {
+            return false;
+        }
     }
 
     /**

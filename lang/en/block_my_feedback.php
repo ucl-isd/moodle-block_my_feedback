@@ -22,14 +22,13 @@
  * @license   http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
- $string['feedbackfor'] = 'Feedback for';
- $string['feedbackreport'] = "Feedback tracker";
- $string['feedbackreportdescription'] = "Assessments, feedback, and marks for all your courses in UCL Moodle.";
- $string['markingfor'] = 'Marking for';
- $string['my_feedback:addinstance'] = 'Add my feedback block';
- $string['my_feedback:myaddinstance'] = 'Add my feedback block';
- $string['pluginname'] = 'My feedback';
- $string['privacy:metadata'] = 'My Feedback does not store any personal data.';
- $string['t:due'] = "Due";
- $string['t:needmarking'] = "to mark";
-
+$string['feedbackfor'] = 'Feedback for {$a}';
+$string['feedbackreport'] = "Feedback tracker";
+$string['feedbackreportdescription'] = "Assessments, feedback, and marks for all your courses in UCL Moodle.";
+$string['markingfor'] = 'Marking for {$a}';
+$string['my_feedback:addinstance'] = 'Add my feedback block';
+$string['my_feedback:myaddinstance'] = 'Add my feedback block';
+$string['pluginname'] = 'My feedback';
+$string['privacy:metadata'] = 'My Feedback does not store any personal data.';
+$string['t:due'] = 'Due {$a}';
+$string['t:needmarking'] = '{$a} to mark';
