@@ -32,29 +32,29 @@
 }}
 
 {{! Mods for feedback and marking. }}
-{{#showassessments}}
-    <h3>{{assessmentheader}}</h3>
-    {{#assessmentmods}}
-        {{> block_my_feedback/mods }}
-        <hr>
-    {{/assessmentmods}}
-{{/showassessments}}
+<div class="d-flex">
 
-{{#showmarkings}}
-    <h3>{{markingheader}}</h3>
-    {{#markingmods}}
-        {{> block_my_feedback/mods }}
-        <hr>
-    {{/markingmods}}
-{{/showmarkings}}
+    <div class="mr-3 bg-cover bg-light rounded-circle flex-shrink-0" style="background-image: url('{{{icon}}}'); height: 4rem; width: 4rem;"></div>
 
-{{#showfeedbacktrackerlink}}
-<div class="bg-light pt-2 pb-3 px-3">
-    <a href="{{{ config.wwwroot }}}/report/feedback_tracker/">
-        <i class="fa-solid fa-circle-arrow-right mr-2" aria-hidden="true"></i>{{#str}} feedbackreport, block_my_feedback {{/str}}
-    </a>
-    <br>
-    <small>{{#str}} feedbackreportdescription, block_my_feedback {{/str}}</small>
+    <div>
+        <div class="line-clamp-1 text-muted">
+            <small>{{coursename}}</small>
+        </div>
+        <a href="{{{url}}}" class="font-weight-bold line-clamp-2">{{name}}</a>
+
+        {{#duedate}}
+            <div class="small">
+                {{#str}} t:due, block_my_feedback {{/str}} {{duedate}}
+                {{#requiremarking}}
+                    · <a href="{{{markingurl}}}">{{requiremarking}} {{#str}} t:needmarking, block_my_feedback {{/str}}</a>
+                {{/requiremarking}}
+            </div>
+        {{/duedate}}
+
+        {{#releaseddate}}
+            <div class="small">
+                {{#tutorname}}{{.}} · {{/tutorname}} {{releaseddate}}
+            </div>
+        {{/releaseddate}}
+    </div>
 </div>
-<hr>
-{{/showfeedbacktrackerlink}}

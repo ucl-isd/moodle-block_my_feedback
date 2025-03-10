@@ -119,14 +119,14 @@ class block_my_feedback extends block_base {
         // Marker content.
         if (self::$ismarker && $template->markingmods = self::fetch_marking($USER)) {
             $template->showmarkings = true;
-            $template->markingheader = get_string('markingfor', 'block_my_feedback').' '.$USER->firstname;
+            $template->markingheader = get_string('markingfor', 'block_my_feedback', $USER->firstname);
         }
 
         // Student content.
         if (self::$isstudent && $template->assessmentmods = $this->fetch_feedback($USER)) {
             $template->showfeedbacktrackerlink = true;
             $template->showassessments = true;
-            $template->assessmentheader = get_string('feedbackfor', 'block_my_feedback').' '.$USER->firstname;
+            $template->assessmentheader = get_string('feedbackfor', 'block_my_feedback', $USER->firstname);
         }
 
         if (isset($template->markingmods) || isset($template->assessmentmods)) {
@@ -164,8 +164,7 @@ class block_my_feedback extends block_base {
      * @param stdClass $course
      * @return bool
      */
-    private static function is_course_marker(stdClass $course): bool
-    {
+    private static function is_course_marker(stdClass $course): bool {
         global $USER;
 
         // Check if user has a merker role in the given course.
