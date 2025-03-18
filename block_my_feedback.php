@@ -117,19 +117,18 @@ class block_my_feedback extends block_base {
 
         // Marker content.
         if (self::$ismarker && $template->markingmods = self::fetch_marking($USER)) {
-            $template->showfeedbacktrackerlink = true;
             $template->showmarkings = true;
             $template->markingheader = get_string('markingfor', 'block_my_feedback', $USER->firstname);
         }
 
         // Student content.
         if (self::$isstudent && $template->assessmentmods = $this->fetch_feedback($USER)) {
-            $template->showfeedbacktrackerlink = true;
             $template->showassessments = true;
             $template->assessmentheader = get_string('feedbackfor', 'block_my_feedback', $USER->firstname);
         }
 
         if (isset($template->markingmods) || isset($template->assessmentmods)) {
+            $template->showfeedbacktrackerlink = true;
             $this->content->text = $OUTPUT->render_from_template('block_my_feedback/content', $template);
         }
 
@@ -390,8 +389,7 @@ class block_my_feedback extends block_base {
         }
 
         // Template data for mustache.
-        $template = new stdClass();
-        $template->feedback = [];
+        $feedbacks = [];
         $i = 0; // We only want to show up to 5 grades - so count the output.
 
         foreach ($submissions as $f) {
@@ -435,10 +433,10 @@ class block_my_feedback extends block_base {
                 $feedback->icon = $icon;
             }
 
-            $template->feedback[] = $feedback;
+            $feedbacks[] = $feedback;
         }
 
-        return $template->feedback ?: null;
+        return $feedbacks ?: null;
     }
 
     /**
