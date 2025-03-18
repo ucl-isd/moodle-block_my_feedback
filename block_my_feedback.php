@@ -117,6 +117,7 @@ class block_my_feedback extends block_base {
 
         // Marker content.
         if (self::$ismarker && $template->markingmods = self::fetch_marking($USER)) {
+            $template->showfeedbacktrackerlink = true;
             $template->showmarkings = true;
             $template->markingheader = get_string('markingfor', 'block_my_feedback', $USER->firstname);
         }
