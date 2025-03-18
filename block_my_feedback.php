@@ -14,7 +14,6 @@
 // You should have received a copy of the GNU General Public License
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
-use core\context\user;
 use core_course\external\course_summary_exporter;
 use local_assess_type\assess_type; // UCL plugin.
 use mod_quiz\question\display_options;
@@ -231,6 +230,9 @@ class block_my_feedback extends block_base {
             $mods = $modinfo->get_cms();
             $cmids = array_column($mods, 'id');
 
+            $enrolledusers = get_enrolled_users(context_course::instance($course->id));
+            $enrolleduserids = array_map(fn($user) => $user->id, $enrolledusers);
+
             // Loop through assessments for this course.
             foreach ($summatives as $summative) {
 
@@ -267,7 +269,7 @@ class block_my_feedback extends block_base {
                         $turnitin = clone $assess;
                         $turnitin->partid = $turnitinpart->id;
                         // Check mod has duedate and require marking.
-                        if (self::add_mod_data($mod, $turnitin)) {
+                        if (self::add_mod_data($mod, $turnitin, $enrolleduserids)) {
                             $turnitin->name = $mod->name . ' ' . $turnitinpart->partname;
                             $marking[] = $turnitin;
                         }
@@ -275,7 +277,7 @@ class block_my_feedback extends block_base {
                 } else {
                     // Check mod has duedate and require marking.
                     if (\report_feedback_tracker\local\helper::is_supported_module($mod->modname) &&
-                            self::add_mod_data($mod, $assess)) {
+                            self::add_mod_data($mod, $assess, $enrolleduserids)) {
                         $marking[] = $assess;
                     }
                 }
@@ -298,9 +300,10 @@ class block_my_feedback extends block_base {
      *
      * @param cm_info $mod
      * @param stdClass $assess
+     * @param array $enrolleduserids
      * @return bool
      */
-    public static function add_mod_data(cm_info $mod, stdClass $assess): bool {
+    public static function add_mod_data(cm_info $mod, stdClass $assess, array $enrolleduserids): bool {
         global $CFG, $DB;
 
         // Get duedate.
@@ -316,7 +319,8 @@ class block_my_feedback extends block_base {
         }
 
         // Return null if no duedate or no marking.
-        if (!$assess->requiremarking = feedback_tracker::count_missing_grades($mod)) {
+        $submissions = feedback_tracker::get_module_submissions($mod, $enrolleduserids);
+        if (!$assess->requiremarking = feedback_tracker::count_missing_grades($mod, $submissions)) {
             return false;
         }
 
