@@ -314,9 +314,18 @@ class block_my_feedback extends block_base {
             return false;
         }
 
-        // Return null if no duedate or no marking.
+        // Get the grade item ID.
+        $params = [
+            'itemtype' => 'mod',
+            'itemnumber' => 0,
+            'itemmodule' => $mod->modname,
+            'iteminstance' => $mod->instance,
+        ];
+        $gradeitemid = $DB->get_field('grade_items', 'id', $params);
+
+        // Return null if no duedate or no missing markings.
         $submitterids = feedback_tracker::get_module_submitterids($mod);
-        if (!$assess->requiremarking = feedback_tracker::count_missing_grades($mod, $submitterids)) {
+        if (!$assess->requiremarking = feedback_tracker::count_missing_grades($mod, $submitterids, $gradeitemid)) {
             return false;
         }
 
