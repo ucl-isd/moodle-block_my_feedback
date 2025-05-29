@@ -309,7 +309,7 @@ class block_my_feedback extends block_base {
             $duedate = feedback_tracker::get_duedate($mod);
         }
 
-        // Check mod has due date, and due date is in range.
+        // Check that mod has a due date, and the due date is in range.
         if (($duedate === 0) || !self::duedate_in_range($duedate)) {
             return false;
         }
@@ -323,7 +323,7 @@ class block_my_feedback extends block_base {
         ];
         $gradeitemid = $DB->get_field('grade_items', 'id', $params);
 
-        // Return null if no duedate or no missing markings.
+        // Check that mod has missing markings.
         $submitterids = feedback_tracker::get_module_submitterids($mod);
         if (!$assess->requiremarking = feedback_tracker::count_missing_grades($mod, $submitterids, $gradeitemid)) {
             return false;
