@@ -254,7 +254,7 @@ class block_my_feedback extends block_base {
                 $assess->name = $mod->name;
                 $assess->coursename = $course->fullname;
                 $assess->url = new moodle_url('/mod/'. $mod->modname. '/view.php', ['id' => $cmid]);
-                // TODO - is this expensive?
+                // Todo - is this expensive?
                 // If so should we only do it once we know we want to display it?
                 $assess->icon = course_summary_exporter::get_course_image($course);
 
@@ -300,7 +300,7 @@ class block_my_feedback extends block_base {
      * @return bool
      */
     public static function add_mod_data(cm_info $mod, stdClass $assess): bool {
-        global $CFG, $DB;
+        global $DB;
 
         // Get duedate.
         if ($mod->modname === 'turnitintooltwo') {
@@ -325,7 +325,7 @@ class block_my_feedback extends block_base {
 
         // Check that mod has missing markings.
         $submitterids = array_column(feedback_tracker::get_module_submissions($mod), 'userid');
-        if (!$assess->requiremarking = feedback_tracker::count_missing_grades($mod, $submitterids, $gradeitemid)) {
+        if (!$assess->requiremarking = feedback_tracker::count_missing_grades($mod, $submitterids, $gradeitemid, true)) {
             return false;
         }
 
