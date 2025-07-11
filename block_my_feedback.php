@@ -325,7 +325,8 @@ class block_my_feedback extends block_base {
 
         // Check that mod has missing markings.
         $submitterids = array_column(feedback_tracker::get_module_submissions($mod), 'userid');
-        if (!$assess->requiremarking = feedback_tracker::count_missing_grades($mod, $submitterids, $gradeitemid, true)) {
+        $assess->requiremarking = feedback_tracker::count_missing_grades($mod, $submitterids, $gradeitemid, true);
+        if ($assess->requiremarking === 0) {
             return false;
         }
 
@@ -456,7 +457,9 @@ class block_my_feedback extends block_base {
         // Limit to last 3 months.
         $since = strtotime('-3 month');
         // Construct the IN clause.
-        list($insql, $params) = $DB->get_in_or_equal(['assign', 'quiz', 'turnitintooltwo'], SQL_PARAMS_NAMED);
+        // Get supported module types from feedback_tracker.
+        $supported = \report_feedback_tracker\local\helper::get_supported_types();
+        list($insql, $params) = $DB->get_in_or_equal($supported, SQL_PARAMS_NAMED);
 
         // Add other params.
         $params['userid'] = $user->id;
