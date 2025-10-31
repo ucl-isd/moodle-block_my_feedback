@@ -46,7 +46,7 @@
             <div class="small">
                 {{#str}} t:due, block_my_feedback {{/str}} {{duedate}}
                 {{#requiremarking}}
-                    · <a href="{{{markingurl}}}">{{requiremarking}} {{#str}} t:needmarking, block_my_feedback {{/str}}</a>
+                    · <a href="{{{markingurl}}}">{{#str}} t:needmarking, block_my_feedback, {{requiremarking}} {{/str}}</a>
                 {{/requiremarking}}
             </div>
         {{/duedate}}
