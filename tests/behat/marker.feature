@@ -78,7 +78,6 @@ Feature: As a marker I want to see only submissions to mark where I am the assig
     And I should see "Test assignment"
     And I should see "3 to mark"
 
-
   @javascript
   Scenario: A Teacher should only see upcoming markings for submission from students that the teacher is assigned as marker.
     Given I am on the "Course 1" "course" page logged in as "teacher1"

@@ -32,12 +32,17 @@ use Behat\Mink\Exception\ElementNotFoundException;
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class behat_block_my_feedback extends behat_base {
-
     /**
-     * @Given /^I select the submissions of "(?P<names_string>[^"]*)"$/
+     * Select the submissions of the given student(s).
+     *
+     * Example: I select the submissions of "Student 1, Student 2"
+     *
+     * @Given /^I select the submissions of "(?P<namesstring>[^"]*)"$/
+     * @param string $namesstring the name(s) of the students to select
+     * @return void
      */
-    public function i_select_the_submissions_of($names_string) {
-        $names = array_map('trim', explode(',', $names_string));
+    public function i_select_the_submissions_of(string $namesstring): void {
+        $names = array_map('trim', explode(',', $namesstring));
         foreach ($names as $name) {
             $xpath = "//tr[contains(., '{$name}')]//input[@name='selectedusers']";
             $this->find('xpath', $xpath)->check();
