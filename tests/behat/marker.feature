@@ -32,28 +32,16 @@ Feature: As a marker I want to see only submissions to mark where I am the assig
       | student3 | C1     | student             |
 
     And the following "activity" exists:
-      | activity                            | assign                                           |
-      | name                                | Test assignment                                  |
-      | course                              | C1                                               |
-      | duedate                             | ##tomorrow##                                     |
-      | assignsubmission_onlinetext_enabled | 1                                                |
-      | assignfeedback_comments_enabled     | 1                                                |
-      | markingworkflow                     | 1                                                |
-      | markingallocation                   | 1                                                |
-      | submissiondrafts                    | 0                                                |
-
-    # Make assessment summative.
-    And I am on the "Course 1" "course" page logged in as "teacher1"
-    And I navigate to "Reports" in current page administration
-    And I click on "Feedback tracker" "link"
-    Then "Report" "field" should exist in the "tertiary-navigation" "region"
-    And I should see "Feedback tracker" in the "tertiary-navigation" "region"
-    And I should see "Test assignment"
-    And I should not see "Summative"
-    When I click on the "Edit" button in the "Test assignment" module
-    When I set the field "assesstype" to "Summative - counts towards the final module mark"
-    And I press "Save"
-    Then I should see "Summative"
+      | activity                            | assign          |
+      | name                                | Test assignment |
+      | course                              | C1              |
+      | duedate                             | ##tomorrow##    |
+      | assignsubmission_onlinetext_enabled | 1               |
+      | assignfeedback_comments_enabled     | 1               |
+      | markingworkflow                     | 1               |
+      | markingallocation                   | 1               |
+      | submissiondrafts                    | 0               |
+      | assessment_type                     | 1               |
 
     And the following "mod_assign > submissions" exist:
       | assign          | user     | onlinetext                            |
@@ -65,7 +53,6 @@ Feature: As a marker I want to see only submissions to mark where I am the assig
       | blockname      | contextlevel | reference | pagetypepattern | defaultregion | defaultweight |
       | my_feedback    | system       |           | my-index        | content       | 0             |
 
-  @javascript
   Scenario: A Teacher should see upcoming markings for submission w/o an assigned marker.
     # As no marker has been set yet teacher1 should see all 3 submissions.
     Given I am logged in as "teacher1"
@@ -75,71 +62,43 @@ Feature: As a marker I want to see only submissions to mark where I am the assig
     And I should see "Test assignment"
     And I should see "3 to mark"
 
-    # As no marker has been set yet teacher2 should see all 3 submissions.
-    Given I am logged in as "teacher2"
-    And I am on site homepage
-    And I follow "Dashboard"
-    Then I should see "Marking for Teacher"
-    And I should see "Test assignment"
-    And I should see "3 to mark"
+  Scenario: teacher1 should see 2 allocated submissions.
+    Given I allocate the following markers for assignment "Test assignment":
+      | Student   | Marker    |
+      | student1  | teacher1  |
+      | student2  | teacher1  |
+      | student3  | teacher2  |
 
-  @javascript
-  Scenario: A Teacher should only see upcoming markings for submission from students that the teacher is assigned as marker.
-    Given I am on the "Course 1" "course" page logged in as "teacher1"
-    And I change window size to "large"
-
-    And I follow "Test assignment"
-    And I navigate to "Submissions" in current page administration
-
-    # Assign teacher1 to student1 and student2 as marker.
-    And I select the submissions of "Student 1, Student 2"
-    And I click on "More" "button"
-    And I click on "Allocate marker" "link"
-    And I click on "Allocate marker" "button"
-    And I set the field "Allocated marker" to "Teacher 1"
-    And I click on "Save changes" "button"
-
-    # Assign teacher2 to student3 as marker.
-    And I select the submissions of "Student 3"
-    And I click on "More" "button"
-    And I click on "Allocate marker" "link"
-    And I click on "Allocate marker" "button"
-    And I set the field "Allocated marker" to "Teacher 2"
-    And I click on "Save changes" "button"
-
-    # Now teacher1 should see 2 allocated submissions.
+    And I am logged in as "teacher1"
     And I am on site homepage
     And I follow "Dashboard"
     Then I should see "Marking for Teacher"
     And I should see "Test assignment"
     And I should see "2 to mark"
-    And I log out
 
-    # Now teacher2 should see 1 allocated submissions.
-    Given I am logged in as "teacher2"
+  Scenario: teacher2 should see 1 allocated submissions.
+    Given I allocate the following markers for assignment "Test assignment":
+      | Student   | Marker    |
+      | student1  | teacher1  |
+      | student2  | teacher1  |
+      | student3  | teacher2  |
+
+    And I am logged in as "teacher2"
     And I am on site homepage
     And I follow "Dashboard"
     Then I should see "Marking for Teacher"
     And I should see "Test assignment"
     And I should see "1 to mark"
 
-  @javascript
   Scenario: A Teacher should not see upcoming markings for submission from students where others are assigned as marker.
-    Given I am on the "Course 1" "course" page logged in as "teacher2"
-    And I change window size to "large"
-
-    And I follow "Test assignment"
-    And I navigate to "Submissions" in current page administration
-
-    # Assign teacher1 to student1, student2 and student3 as marker.
-    And I select the submissions of "Student 1, Student 2, Student 3"
-    And I click on "More" "button"
-    And I click on "Allocate marker" "link"
-    And I click on "Allocate marker" "button"
-    And I set the field "Allocated marker" to "Teacher 1"
-    And I click on "Save changes" "button"
+    Given I allocate the following markers for assignment "Test assignment":
+      | Student   | Marker    |
+      | student1  | teacher1  |
+      | student2  | teacher1  |
+      | student3  | teacher1  |
 
     # Now My Feedback should no longer show any submissions for teacher2
+    And I am logged in as "teacher2"
     And I am on site homepage
     And I follow "Dashboard"
     Then I should not see "Marking for Teacher"

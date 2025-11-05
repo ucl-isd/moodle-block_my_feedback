@@ -22,7 +22,7 @@
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-use Behat\Mink\Exception\ElementNotFoundException;
+use Behat\Gherkin\Node\TableNode;
 
 /**
  * Steps definitions.
@@ -33,19 +33,31 @@ use Behat\Mink\Exception\ElementNotFoundException;
  */
 class behat_block_my_feedback extends behat_base {
     /**
-     * Select the submissions of the given student(s).
-     *
-     * Example: I select the submissions of "Student 1, Student 2"
-     *
-     * @Given /^I select the submissions of "(?P<namesstring>[^"]*)"$/
-     * @param string $namesstring the name(s) of the students to select
+     * @Given /^I allocate the following markers for assignment "(?P<namesstring>[^"]*)":$/
+     * @param string $assignname
+     * @param TableNode $table
      * @return void
      */
-    public function i_select_the_submissions_of(string $namesstring): void {
-        $names = array_map('trim', explode(',', $namesstring));
-        foreach ($names as $name) {
-            $xpath = "//tr[contains(., '{$name}')]//input[@name='selectedusers']";
-            $this->find('xpath', $xpath)->check();
+    public function allocate_assignment_markers(string $assignname, TableNode $table): void {
+        global $DB;
+
+        $assignid = $DB->get_field('assign', 'id', ['name' => $assignname]);
+        $allocations = $table->getHash();
+
+        foreach ($allocations as $allocation) {
+            $studentid = $DB->get_field('user', 'id', ['username' => $allocation['Student']]);
+            $allocatedmarker = $DB->get_field('user', 'id', ['username' => $allocation['Marker']]);
+
+            if ($record = $DB->get_record('assign_user_flags', ['assignment' => $assignid, 'userid' => $studentid])) {
+                $record->allocatedmarker = $allocatedmarker;
+                $DB->update_record('assign_user_flags', $record);
+            } else {
+                $record = new \stdClass();
+                $record->assignment = $assignid;
+                $record->userid = $studentid;
+                $record->allocatedmarker = $allocatedmarker;
+                $DB->insert_record('assign_user_flags', $record);
+            }
         }
     }
 }
