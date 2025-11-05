@@ -33,6 +33,8 @@ use Behat\Gherkin\Node\TableNode;
  */
 class behat_block_my_feedback extends behat_base {
     /**
+     * Allocates markers to submissions
+     *
      * @Given /^I allocate the following markers for assignment "(?P<namesstring>[^"]*)":$/
      * @param string $assignname
      * @param TableNode $table
