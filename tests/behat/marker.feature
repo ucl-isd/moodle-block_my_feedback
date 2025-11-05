@@ -20,7 +20,6 @@ Feature: As a marker I want to see only submissions to mark where I am the assig
       | student1 | Student   | 1        | student1@example.com |
       | student2 | Student   | 2        | student2@example.com |
       | student3 | Student   | 3        | student3@example.com |
-      | marker1  | Marker    | 1        | marker1@example.com  |
 
     And the following "course enrolments" exist:
       | user     | course | role                |
@@ -31,11 +30,17 @@ Feature: As a marker I want to see only submissions to mark where I am the assig
       | student1 | C1     | student             |
       | student2 | C1     | student             |
       | student3 | C1     | student             |
-      | marker1  | C1     | editingteacher      |
 
-    And the following "activities" exist:
-      | activity | name             | intro             | course | duedate      | idnumber | assignsubmission_onlinetext_enabled | assignfeedback_comments_enabled | assignfeedback_editpdf_enabled  | markingworkflow | markingallocation | submissiondrafts  | Formative or summative?                           |
-      | assign   | Test assignment  | Assignment intro. | C1     | ##tomorrow## | assign1  | 1                                   | 1                               | 1                               | 1               | 1                 | 0                 | Summative - counts towards the final module mark  |
+    And the following "activity" exists:
+      | activity                            | assign                                           |
+      | name                                | Test assignment                                  |
+      | course                              | C1                                               |
+      | duedate                             | ##tomorrow##                                     |
+      | assignsubmission_onlinetext_enabled | 1                                                |
+      | assignfeedback_comments_enabled     | 1                                                |
+      | markingworkflow                     | 1                                                |
+      | markingallocation                   | 1                                                |
+      | submissiondrafts                    | 0                                                |
 
     # Make assessment summative.
     And I am on the "Course 1" "course" page logged in as "teacher1"
@@ -61,7 +66,7 @@ Feature: As a marker I want to see only submissions to mark where I am the assig
       | my_feedback    | system       |           | my-index        | content       | 0             |
 
   @javascript
-  Scenario: A Teacher should see upcoming markings for submission w/o an assigened marker.
+  Scenario: A Teacher should see upcoming markings for submission w/o an assigned marker.
     # As no marker has been set yet teacher1 should see all 3 submissions.
     Given I am logged in as "teacher1"
     And I am on site homepage
@@ -118,11 +123,16 @@ Feature: As a marker I want to see only submissions to mark where I am the assig
     And I should see "Test assignment"
     And I should see "1 to mark"
 
-    # Allocate teacher1 as marker for student3
+  @javascript
+  Scenario: A Teacher should not see upcoming markings for submission from students where others are assigned as marker.
+    Given I am on the "Course 1" "course" page logged in as "teacher2"
+    And I change window size to "large"
+
     And I follow "Test assignment"
     And I navigate to "Submissions" in current page administration
 
-    And I select the submissions of "Student 3"
+    # Assign teacher1 to student1, student2 and student3 as marker.
+    And I select the submissions of "Student 1, Student 2, Student 3"
     And I click on "More" "button"
     And I click on "Allocate marker" "link"
     And I click on "Allocate marker" "button"
