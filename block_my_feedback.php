@@ -18,7 +18,10 @@ use core_course\external\course_summary_exporter;
 use local_assess_type\assess_type; // UCL plugin.
 use mod_quiz\question\display_options;
 use report_feedback_tracker\local\admin as feedback_tracker; // UCL plugin.
-use report_feedback_tracker\local\helper as feedback_tracker_helper; // UCL plugin.
+use report_feedback_tracker\local\helper as feedback_tracker_helper;
+use report_feedback_tracker\local\module_helper_factory;
+
+// UCL plugin.
 
 /**
  * Block definition class for the block_my_feedback plugin.
@@ -307,11 +310,13 @@ class block_my_feedback extends block_base {
     public static function add_mod_data(cm_info $mod, stdClass $assess): bool {
         global $DB;
 
+        $modulehelper = module_helper_factory::create($mod);
+
         // Get duedate.
         if ($mod->modname === 'turnitintooltwo') {
             $duedate = $DB->get_field('turnitintooltwo_parts', 'dtdue', ['id' => $assess->partid]);
         } else {
-            $duedate = feedback_tracker::get_duedate($mod);
+            $duedate = $modulehelper->get_duedate();
         }
 
         // Check that mod has a due date, and the due date is in range.
@@ -329,8 +334,8 @@ class block_my_feedback extends block_base {
         $gradeitemid = $DB->get_field('grade_items', 'id', $params);
 
         // Check that mod has missing markings.
-        $submitterids = array_column(feedback_tracker::get_module_submissions($mod), 'userid');
-        $assess->requiremarking = feedback_tracker::count_missing_grades($mod, $submitterids, $gradeitemid, true);
+        $submitterids = array_column($modulehelper->get_module_submissions(), 'userid');
+        $assess->requiremarking = $modulehelper->count_missing_grades($gradeitemid, true);
         if ($assess->requiremarking === 0) {
             return false;
         }
@@ -339,7 +344,7 @@ class block_my_feedback extends block_base {
         $assess->unixtimestamp = $duedate;
         $assess->duedate = date('jS M', $duedate);
 
-        $assess->markingurl = feedback_tracker::get_markingurl($mod);
+        $assess->markingurl = $modulehelper->get_markingurl();
 
         // Return template data.
         return true;
