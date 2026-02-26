@@ -80,7 +80,8 @@ jobs:
       - name: Install moodle-plugin-ci
         run: |
           moodle-plugin-ci add-plugin -b main --clone https://github.com/ucl-isd/moodle-local_assess_type.git
-          moodle-plugin-ci add-plugin -b main --clone https://aspark21:"$GHA_MOODLE_READ_ACCESS"@github.com/ucl-isd/moodle-report_feedback_tracker.git
+#          moodle-plugin-ci add-plugin -b main --clone https://aspark21:"$GHA_MOODLE_READ_ACCESS"@github.com/ucl-isd/moodle-report_feedback_tracker.git
+          moodle-plugin-ci add-plugin -b CTP-4133-module-helper-classes --clone https://aspark21:"$GHA_MOODLE_READ_ACCESS"@github.com/ucl-isd/moodle-report_feedback_tracker.git
           moodle-plugin-ci add-plugin -b main --clone https://github.com/ucl-isd/moodle-mod_coursework.git
           moodle-plugin-ci install --plugin ./plugin --db-host=127.0.0.1
         env:
