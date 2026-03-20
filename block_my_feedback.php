@@ -334,7 +334,8 @@ class block_my_feedback extends block_base {
         $gradeitemid = $DB->get_field('grade_items', 'id', $params);
 
         // Check that mod has missing markings.
-        $assess->requiremarking = $modulehelper->count_missing_grades($gradeitemid, true);
+        $markeronly = true;
+        $assess->requiremarking = $modulehelper->count_missing_grades($markeronly);
         if ($assess->requiremarking === 0) {
             return false;
         }
