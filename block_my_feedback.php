@@ -17,11 +17,8 @@
 use core_course\external\course_summary_exporter;
 use local_assess_type\assess_type; // UCL plugin.
 use mod_quiz\question\display_options;
-use report_feedback_tracker\local\admin as feedback_tracker; // UCL plugin.
-use report_feedback_tracker\local\helper as feedback_tracker_helper;
-use report_feedback_tracker\local\module_helper_factory;
-
-// UCL plugin.
+use report_feedback_tracker\local\helper as feedback_tracker_helper; // UCL plugin.
+use report_feedback_tracker\local\module_helper;
 
 /**
  * Block definition class for the block_my_feedback plugin.
@@ -310,7 +307,7 @@ class block_my_feedback extends block_base {
     public static function add_mod_data(cm_info $mod, stdClass $assess): bool {
         global $DB;
 
-        $modulehelper = module_helper_factory::create($mod);
+        $modulehelper = module_helper::create($mod);
 
         // Get duedate.
         if ($mod->modname === 'turnitintooltwo') {
