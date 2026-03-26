@@ -44,13 +44,13 @@ class behat_block_my_feedback extends behat_base {
     public function allocate_assignment_markers(string $assignname, TableNode $table): void {
         global $DB;
 
-        $assignid = $DB->get_field('assign', 'id', ['name' => $assignname]);
+        $assignid = $DB->get_field('assign', 'id', ['name' => $assignname], MUST_EXIST);
         $cm = get_coursemodule_from_instance('assign', $assignid, 0, false, MUST_EXIST);
         $allocations = $table->getHash();
 
         foreach ($allocations as $allocation) {
-            $studentid = $DB->get_field('user', 'id', ['username' => $allocation['Student']]);
-            $allocatedmarker = $DB->get_field('user', 'id', ['username' => $allocation['Marker']]);
+            $studentid = $DB->get_field('user', 'id', ['username' => $allocation['Student']], MUST_EXIST);
+            $allocatedmarker = $DB->get_field('user', 'id', ['username' => $allocation['Marker']], MUST_EXIST);
 
             if ($record = $DB->get_record('assign_user_flags', ['assignment' => $assignid, 'userid' => $studentid])) {
                 $record->allocatedmarker = $allocatedmarker;
