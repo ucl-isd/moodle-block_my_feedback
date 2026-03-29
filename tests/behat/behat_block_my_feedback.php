@@ -43,12 +43,13 @@ class behat_block_my_feedback extends behat_base {
     public function allocate_assignment_markers(string $assignname, TableNode $table): void {
         global $DB;
 
-        $assignid = $DB->get_field('assign', 'id', ['name' => $assignname]);
+        $assignid = $DB->get_field('assign', 'id', ['name' => $assignname], MUST_EXIST);
+        $cm = get_coursemodule_from_instance('assign', $assignid, 0, false, MUST_EXIST);
         $allocations = $table->getHash();
 
         foreach ($allocations as $allocation) {
-            $studentid = $DB->get_field('user', 'id', ['username' => $allocation['Student']]);
-            $allocatedmarker = $DB->get_field('user', 'id', ['username' => $allocation['Marker']]);
+            $studentid = $DB->get_field('user', 'id', ['username' => $allocation['Student']], MUST_EXIST);
+            $allocatedmarker = $DB->get_field('user', 'id', ['username' => $allocation['Marker']], MUST_EXIST);
 
             if ($record = $DB->get_record('assign_user_flags', ['assignment' => $assignid, 'userid' => $studentid])) {
                 $record->allocatedmarker = $allocatedmarker;
@@ -61,5 +62,96 @@ class behat_block_my_feedback extends behat_base {
                 $DB->insert_record('assign_user_flags', $record);
             }
         }
+
+        rebuild_course_cache($cm->course, true);
+    }
+
+    /**
+     * Create finished quiz attempts for users.
+     *
+     * @Given /^the following quiz attempts exist:$/
+     * @param TableNode $table
+     * @return void
+     */
+    public function the_following_quiz_attempts_exist(TableNode $table): void {
+        global $DB;
+
+        foreach ($table->getHash() as $row) {
+            $activity = $this->get_activity_by_name($row['quiz']);
+            if ($activity->modname !== 'quiz') {
+                throw new \coding_exception('Activity is not a quiz: ' . $row['quiz']);
+            }
+
+            $userid = $DB->get_field('user', 'id', ['username' => $row['user']], MUST_EXIST);
+            $attempt = new \stdClass();
+            $attempt->quiz = $activity->instanceid;
+            $attempt->userid = $userid;
+            $attempt->attempt = 1;
+            $attempt->uniqueid = 0;
+            $attempt->layout = '';
+            $attempt->currentpage = 0;
+            $attempt->preview = 0;
+            $attempt->state = 'finished';
+            $attempt->timestart = time() - HOURSECS;
+            $attempt->timefinish = time() - MINSECS;
+            $attempt->timemodified = time() - MINSECS;
+            $attempt->timecheckstate = 0;
+            $attempt->sumgrades = 0;
+            $DB->insert_record('quiz_attempts', $attempt);
+
+            $cm = get_coursemodule_from_id('quiz', $activity->cmid, 0, false, MUST_EXIST);
+            rebuild_course_cache($cm->course, true);
+        }
+    }
+
+    /**
+     * Get activity data by name.
+     *
+     * @param string $activityname
+     * @return \stdClass
+     */
+    private function get_activity_by_name(string $activityname): \stdClass {
+        global $DB;
+
+        $matches = [];
+        $modules = $DB->get_records('modules', null, '', 'name');
+
+        foreach ($modules as $module) {
+            $tablename = $module->name;
+
+            if (!$DB->get_manager()->table_exists($tablename)) {
+                continue;
+            }
+
+            $columns = $DB->get_columns($tablename);
+            if (!isset($columns['name'])) {
+                continue;
+            }
+
+            $sql = "SELECT cm.id AS cmid, m.name AS modname, cm.instance AS instanceid
+                      FROM {course_modules} cm
+                      JOIN {modules} m ON m.id = cm.module
+                      JOIN {" . $tablename . "} modinstance ON modinstance.id = cm.instance
+                     WHERE m.name = :modname AND modinstance.name = :activityname";
+
+            $records = $DB->get_records_sql($sql, [
+                'modname' => $module->name,
+                'activityname' => $activityname,
+            ]);
+
+            foreach ($records as $record) {
+                $matches[] = $record;
+            }
+        }
+
+        if (count($matches) === 0) {
+            throw new \coding_exception('Could not find activity with name: ' . $activityname);
+        }
+
+        if (count($matches) > 1) {
+            throw new \coding_exception('Activity name is ambiguous (multiple modules found): ' . $activityname);
+        }
+
+        return reset($matches);
     }
 }
