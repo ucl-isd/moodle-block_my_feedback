@@ -14,7 +14,6 @@ Feature: Marker view shows a maximum of 5 items ordered by due date
       | student1 | Student   | 1        | student1@example.com |
     And the following "course enrolments" exist:
       | user     | course | role               |
-      | teacher1 | C1     | editingteacher     |
       | teacher1 | C1     | uclnoneditingtutor |
       | student1 | C1     | student            |
     And the following "blocks" exist:

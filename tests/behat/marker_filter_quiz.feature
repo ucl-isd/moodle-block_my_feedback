@@ -14,7 +14,6 @@ Feature: Quiz with a due date of today and an attempt to mark is shown
       | student1 | Student   | 1        | student1@example.com |
     And the following "course enrolments" exist:
       | user     | course | role               |
-      | teacher1 | C1     | editingteacher     |
       | teacher1 | C1     | uclnoneditingtutor |
       | student1 | C1     | student            |
     And the following "blocks" exist:

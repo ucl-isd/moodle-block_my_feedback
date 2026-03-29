@@ -23,8 +23,6 @@ Feature: As a marker I want to see only submissions to mark where I am the assig
 
     And the following "course enrolments" exist:
       | user     | course | role                |
-      | teacher1 | C1     | editingteacher      |
-      | teacher2 | C1     | editingteacher      |
       | teacher1 | C1     | uclnoneditingtutor  |
       | teacher2 | C1     | uclnoneditingtutor  |
       | student1 | C1     | student             |
