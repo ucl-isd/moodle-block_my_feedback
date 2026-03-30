@@ -431,6 +431,10 @@ class block_my_feedback extends block_base {
             if ($f->modname == 'quiz' || $f->modname == 'turnitintooltwo') {
                 $f->hidegrader = true;
             }
+            // Hide courswork markers if set.
+            if ($f->modname == 'coursework' && $f->assessoranonymity) {
+                $f->hidegrader = true;
+            }
 
             // Marker.
             if ($f->hidegrader) {
@@ -476,7 +480,9 @@ class block_my_feedback extends block_base {
 
         // Make sure only submissions from active courses are returned.
         $courses = enrol_get_all_users_courses($user->id, true, ['enddate']);
-        $params['courseids'] = implode(',', array_keys($courses));
+        $courseids = array_keys($courses);
+        [$courseinsql, $courseparams] = $DB->get_in_or_equal($courseids, SQL_PARAMS_NAMED, 'courseid');
+        $params = array_merge($params, $courseparams);
 
         $unixtimestamp = time();
 
@@ -491,29 +497,25 @@ class block_my_feedback extends block_base {
                     gg.timemodified AS lastmodified,
                     cm.id AS cmid,
                     gi.itemmodule AS modname,
-                    cm.instance as instance
+                    cm.instance as instance,
+                    cw.assessoranonymity
                 FROM
                     {grade_grades} gg
-                        JOIN
-                    {grade_items} gi ON gg.itemid = gi.id
-                        JOIN
-                    {modules} m ON gi.itemmodule = m.name
-                        JOIN
-                    {course_modules} cm ON gi.courseid = cm.course AND m.id = cm.module AND gi.iteminstance = cm.instance
-                        JOIN
-                    {user} u ON gg.usermodified = u.id
-                        LEFT JOIN
-                    {assign} a ON gi.iteminstance = a.id AND gi.itemmodule = 'assign'
-                        LEFT JOIN
-                    {assign_user_flags} uf ON gg.userid = uf.userid AND a.id = uf.assignment AND a.markingworkflow = 1
+                    JOIN {grade_items} gi ON gg.itemid = gi.id
+                    JOIN {modules} m ON gi.itemmodule = m.name
+                    JOIN {course_modules} cm ON gi.courseid = cm.course AND m.id = cm.module AND gi.iteminstance = cm.instance
+                    JOIN {user} u ON gg.usermodified = u.id
+                    LEFT JOIN {assign} a ON gi.iteminstance = a.id AND gi.itemmodule = 'assign'
+                    LEFT JOIN {assign_user_flags} uf ON gg.userid = uf.userid AND a.id = uf.assignment AND a.markingworkflow = 1
+                    LEFT JOIN {coursework} cw ON gi.iteminstance = cw.id AND gi.itemmodule = 'coursework'
                 WHERE
                     (gg.finalgrade IS NOT NULL OR gg.feedback IS NOT NULL)
                         AND gi.itemmodule $insql
                         AND (COALESCE(a.markingworkflow, 0) = 0 OR (a.markingworkflow = 1 AND uf.workflowstate = :wfreleased))
-                        AND gi.hidden < $unixtimestamp
+                        AND gi.hidden < $unixtimestamp AND gi.hidden != 1
                         AND gg.timemodified >= :since AND gg.timemodified <= $unixtimestamp
                         AND gg.userid = :userid
-                        AND gi.courseid IN (:courseids)
+                        AND gi.courseid $courseinsql
                 ORDER BY gg.timemodified DESC";
 
         return $DB->get_records_sql($sql, $params);

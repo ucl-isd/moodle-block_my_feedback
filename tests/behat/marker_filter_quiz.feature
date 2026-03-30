@@ -1,4 +1,4 @@
-@block @block_my_feedback @bmf_test
+@block @block_my_feedback
 Feature: Quiz with a due date of today and an attempt to mark is shown
 
   Scenario: Quiz with a due date of today and an attempt to mark is shown
