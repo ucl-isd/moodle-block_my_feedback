@@ -1,4 +1,4 @@
-@block @block_my_feedback
+@block @block_my_feedback @javascript
 Feature: Student feedback hides coursework marker identity when assessor anonymity is enabled
   In order to protect anonymous marking in coursework
   As a student
