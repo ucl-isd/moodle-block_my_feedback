@@ -461,60 +461,40 @@ class block_my_feedback extends block_base {
      * @throws coding_exception
      */
     public function get_submissions($user) {
-        global $DB;
-
         $since = strtotime('-3 month');
         $supported = $this->get_supported_types();
-        [$insql, $params] = $DB->get_in_or_equal($supported, SQL_PARAMS_NAMED);
-
         $courses = enrol_get_all_users_courses($user->id, true, ['enddate']);
-        $courseids = array_keys($courses);
 
-        if (empty($courseids)) {
+        if (!$courses || !$supported) {
             return [];
         }
 
-        [$courseinsql, $courseparams] = $DB->get_in_or_equal($courseids, SQL_PARAMS_NAMED, 'courseid');
+        $submissions = [];
 
-        $params += $courseparams;
-        $params['userid'] = $user->id;
-        $params['since'] = $since;
-        $params['now1'] = time();
-        $params['now2'] = $params['now1'];
-        $params['wfreleased'] = 'released';
+        foreach ($courses as $course) {
+            if (!$course->visible || !self::is_course_current($course)) {
+                continue;
+            }
 
-        $sql = "SELECT
-                gg.id AS gradeid,
-                gi.courseid AS course,
-                a.hidegrader AS hidegrader,
-                gi.itemname AS name,
-                gg.userid AS userid,
-                gg.usermodified AS grader,
-                gg.timemodified AS lastmodified,
-                cm.id AS cmid,
-                gi.itemmodule AS modname,
-                cm.instance AS instance,
-                cw.assessoranonymity
-            FROM {grade_grades} gg
-            INNER JOIN {grade_items} gi ON gg.itemid = gi.id
-            INNER JOIN {modules} m ON gi.itemmodule = m.name
-            INNER JOIN {course_modules} cm ON gi.courseid = cm.course AND m.id = cm.module AND gi.iteminstance = cm.instance
-            INNER JOIN {user} u ON gg.usermodified = u.id
-            LEFT JOIN {assign} a ON gi.itemmodule = 'assign' AND gi.iteminstance = a.id
-            LEFT JOIN {assign_user_flags} uf ON gg.userid = uf.userid AND a.id = uf.assignment AND a.markingworkflow = 1
-            LEFT JOIN {coursework} cw ON gi.itemmodule = 'coursework' AND gi.iteminstance = cw.id
-            WHERE (gg.finalgrade IS NOT NULL OR gg.feedback IS NOT NULL)
-              AND gi.itemmodule $insql
-              AND (COALESCE(a.markingworkflow, 0) = 0 OR (a.markingworkflow = 1 AND uf.workflowstate = :wfreleased))
-              AND gi.hidden < :now1
-              AND gi.hidden != 1
-              AND gg.timemodified >= :since
-              AND gg.timemodified <= :now2
-              AND gg.userid = :userid
-              AND gi.courseid $courseinsql
-            ORDER BY gg.timemodified DESC";
+            $modinfo = get_fast_modinfo($course->id);
+            foreach ($modinfo->get_cms() as $cm) {
+                if (!$cm->uservisible || !in_array($cm->modname, $supported)) {
+                    continue;
+                }
 
-        return $DB->get_records_sql($sql, $params);
+                $modulehelper = module_helper::create($cm);
+                $records = $modulehelper->get_student_feedback_grade_records($user->id, $since);
+
+                foreach ($records as $record) {
+                    $record->cmid = $cm->id;
+                    $submissions[] = $record;
+                }
+            }
+        }
+
+        usort($submissions, fn($a, $b) => $b->lastmodified <=> $a->lastmodified);
+
+        return $submissions;
     }
 
     /**
