@@ -413,8 +413,14 @@ class block_my_feedback extends block_base {
             $cms = $modinfo->get_instances_of($f->modname);
             $cm = $cms[$f->instance] ?? null;
             $modulehelper = $cm ? module_helper::create($cm) : null;
+            $course = $DB->get_record('course', ['id' => $f->course], '*', MUST_EXIST);
 
-            if ($modulehelper && !$modulehelper->should_show_feedback_to_student($f)) {
+            if (!$modulehelper) {
+                continue;
+            }
+
+            $normalised = $modulehelper->build_student_feedback_data($f, $course);
+            if (!$normalised) {
                 continue;
             }
 
@@ -428,24 +434,11 @@ class block_my_feedback extends block_base {
             $feedback->releaseddate = date('jS M', $f->lastmodified);
             $feedback->name = $f->name;
             $feedback->url = new moodle_url('/mod/' . $f->modname . '/view.php', ['id' => $f->cmid]);
-
-            // Course.
-            $course = $DB->get_record('course', ['id' => $f->course]);
             $feedback->coursename = $course->fullname;
 
-            $f->hidegrader = !empty($f->hidegrader);
-
-            if ($modulehelper && $modulehelper->should_hide_grader_from_student($f)) {
-                $f->hidegrader = true;
-            }
-
-            // Marker.
-            if ($f->hidegrader) {
-                // Hide grader, so use course image.
-                // Course image.
+            if ($normalised->hidegrader) {
                 $feedback->icon = course_summary_exporter::get_course_image($course);
             } else {
-                // Marker details.
                 $grader = core_user::get_user($f->grader);
                 $userpicture = new user_picture($grader);
                 $userpicture->size = 100;
