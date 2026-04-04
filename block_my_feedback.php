@@ -409,8 +409,12 @@ class block_my_feedback extends block_base {
         $i = 0; // We only want to show up to 5 grades - so count the output.
 
         foreach ($submissions as $f) {
-            // Check if a quiz feedback should be shown.
-            if ($f->modname == 'quiz' && !$this->show_quiz_submission($f)) {
+            $modinfo = get_fast_modinfo($f->course);
+            $cms = $modinfo->get_instances_of($f->modname);
+            $cm = $cms[$f->instance] ?? null;
+            $modulehelper = $cm ? module_helper::create($cm) : null;
+
+            if ($modulehelper && !$modulehelper->should_show_feedback_to_student($f)) {
                 continue;
             }
 
@@ -428,11 +432,6 @@ class block_my_feedback extends block_base {
             // Course.
             $course = $DB->get_record('course', ['id' => $f->course]);
             $feedback->coursename = $course->fullname;
-
-            $modinfo = get_fast_modinfo($f->course);
-            $cms = $modinfo->get_instances_of($f->modname);
-            $cm = $cms[$f->instance] ?? null;
-            $modulehelper = $cm ? module_helper::create($cm) : null;
 
             $f->hidegrader = !empty($f->hidegrader);
 
@@ -563,31 +562,6 @@ class block_my_feedback extends block_base {
         return $supported;
     }
 
-    /**
-     * Checking Review options for showing quiz submissions.
-     *
-     * @param stdClass $submission
-     * @return bool
-     */
-    public function show_quiz_submission(stdClass $submission): bool {
-        global $DB;
-
-        $quizobj = $DB->get_record('quiz', ['id' => $submission->instance]);
-
-        if ($quizobj->timeclose > 0 && $quizobj->timeclose < time()) { // The quiz is closed.
-            $reviewoptions = display_options::make_from_quiz($quizobj, display_options::AFTER_CLOSE);
-        } else {
-            $reviewoptions = display_options::make_from_quiz($quizobj, display_options::LATER_WHILE_OPEN);
-        }
-
-        // Only when these options are all set the submission should be shown.
-        // NB: when maxmarks and marks are both set $reviewoptions->marks == 2.
-        if ($reviewoptions->attempt + $reviewoptions->correctness + $reviewoptions->marks == 4) {
-            return true;
-        }
-
-        return false;
-    }
 
     /**
      * Defines in which pages this block can be added.
