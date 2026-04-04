@@ -435,11 +435,6 @@ class block_my_feedback extends block_base {
 
             $f->hidegrader = !empty($f->hidegrader);
 
-            // UCL want to always hide grader for quiz and turnitintooltwo.
-            if ($f->modname == 'quiz' || $f->modname == 'turnitintooltwo') {
-                $f->hidegrader = true;
-            }
-
             if ($modulehelper && $modulehelper->should_hide_grader_from_student($f)) {
                 $f->hidegrader = true;
             }
