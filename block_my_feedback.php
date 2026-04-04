@@ -429,12 +429,19 @@ class block_my_feedback extends block_base {
             $course = $DB->get_record('course', ['id' => $f->course]);
             $feedback->coursename = $course->fullname;
 
+            $modinfo = get_fast_modinfo($f->course);
+            $cms = $modinfo->get_instances_of($f->modname);
+            $cm = $cms[$f->instance] ?? null;
+            $modulehelper = $cm ? module_helper::create($cm) : null;
+
+            $f->hidegrader = !empty($f->hidegrader);
+
             // UCL want to always hide grader for quiz and turnitintooltwo.
             if ($f->modname == 'quiz' || $f->modname == 'turnitintooltwo') {
                 $f->hidegrader = true;
             }
-            // Hide courswork markers if set.
-            if ($f->modname == 'coursework' && $f->assessoranonymity) {
+
+            if ($modulehelper && $modulehelper->should_hide_grader_from_student($f)) {
                 $f->hidegrader = true;
             }
 
