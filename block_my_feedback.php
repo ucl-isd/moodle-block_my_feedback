@@ -419,8 +419,8 @@ class block_my_feedback extends block_base {
                 continue;
             }
 
-            $normalised = $modulehelper->build_student_feedback_data($f, $course);
-            if (!$normalised) {
+            $feedbackdata = $modulehelper->build_student_feedback_data($f, $course);
+            if (!$feedbackdata) {
                 continue;
             }
 
@@ -436,7 +436,7 @@ class block_my_feedback extends block_base {
             $feedback->url = new moodle_url('/mod/' . $f->modname . '/view.php', ['id' => $f->cmid]);
             $feedback->coursename = $course->fullname;
 
-            if ($normalised->hidegrader) {
+            if ($feedbackdata->hidegrader) {
                 $feedback->icon = course_summary_exporter::get_course_image($course);
             } else {
                 $grader = core_user::get_user($f->grader);
@@ -454,7 +454,7 @@ class block_my_feedback extends block_base {
     }
 
     /**
-     * Get all assign, quiz and turnitintooltwo submissions for a user that are no older than 3 month.
+     * Get all submissions from supported module types for a user that are no older than 3 month.
      *
      * @param stdClass $user
      * @return array
