@@ -261,27 +261,25 @@ class block_my_feedback extends block_base {
                 // If so should we only do it once we know we want to display it?
                 $assess->icon = course_summary_exporter::get_course_image($course);
 
-                // Turnitin.
-                if ($assess->modname === 'turnitintooltwo') {
-                    // Fetch parts.
-                    $turnitinparts = feedback_tracker_helper::get_turnitin_parts($mod->instance);
-                    foreach ($turnitinparts as $turnitinpart) {
-                        $turnitin = clone $assess;
-                        $turnitin->partid = $turnitinpart->id;
-                        // Check mod has duedate and require marking.
-                        if (self::add_mod_data($mod, $turnitin)) {
-                            $turnitin->name = $mod->name . ' ' . $turnitinpart->partname;
-                            $marking[] = $turnitin;
-                        }
+                if (!feedback_tracker_helper::is_supported_module($mod->modname)) {
+                    continue;
+                }
+
+                $modulehelper = module_helper::create($mod);
+                foreach ($modulehelper->get_marking_targets() as $target) {
+                    $targetassess = clone $assess;
+                    $targetassess->partid = $target->partid;
+
+                    // Check mod target has duedate and requires marking.
+                    if (!self::add_mod_data($mod, $targetassess, $target->duedate)) {
+                        continue;
                     }
-                } else {
-                    // Check mod has duedate and require marking.
-                    if (
-                        feedback_tracker_helper::is_supported_module($mod->modname) &&
-                        self::add_mod_data($mod, $assess)
-                    ) {
-                        $marking[] = $assess;
+
+                    if (!empty($target->partname)) {
+                        $targetassess->name = $mod->name . ' ' . $target->partname;
                     }
+
+                    $marking[] = $targetassess;
                 }
             }
         }
@@ -298,23 +296,17 @@ class block_my_feedback extends block_base {
     }
 
     /**
-     * Return mod data - due date & require marking.
+     * Return mod target data - due date & require marking.
      *
      * @param cm_info $mod
      * @param stdClass $assess
+     * @param int $duedate
      * @return bool
      */
-    public static function add_mod_data(cm_info $mod, stdClass $assess): bool {
+    public static function add_mod_data(cm_info $mod, stdClass $assess, int $duedate): bool {
         global $DB;
 
         $modulehelper = module_helper::create($mod);
-
-        // Get duedate.
-        if ($mod->modname === 'turnitintooltwo') {
-            $duedate = $DB->get_field('turnitintooltwo_parts', 'dtdue', ['id' => $assess->partid]);
-        } else {
-            $duedate = $modulehelper->get_duedate();
-        }
 
         // Check that mod has a due date, and the due date is in range.
         if (($duedate === 0) || !self::duedate_in_range($duedate)) {
