@@ -508,13 +508,9 @@ class block_my_feedback extends block_base {
             'workshop',
         ];
 
-        // Only include optional module types if they are installed.
-        $installed = \core_component::get_plugin_list('mod');
+        // Only include optional module types if they are supported by feedback tracker.
         foreach ($types as $modname) {
-            if (
-                array_key_exists($modname, $installed) &&
-                (PHPUNIT_TEST || feedback_tracker_helper::is_supported_module($modname))
-            ) {
+            if (PHPUNIT_TEST || feedback_tracker_helper::is_supported_module($modname)) {
                 $supported[] = $modname;
             }
         }
