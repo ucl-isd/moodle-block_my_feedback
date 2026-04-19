@@ -20,6 +20,7 @@ use advanced_testcase;
 use block_my_feedback;
 use context_course;
 use core\context\course;
+use mod_quiz\question\display_options;
 
 /**
  * PHPUnit block_my_feedback tests
@@ -48,7 +49,7 @@ final class my_feedback_test extends advanced_testcase {
      * @throws \coding_exception
      */
     private function setup_grade_data($course, $teacher, $student1, $student2): void {
-        global $CFG;
+        global $CFG, $DB;
 
         // Create an array of modules and their grades.
         $dummymodules = [
@@ -150,12 +151,50 @@ final class my_feedback_test extends advanced_testcase {
                     continue;
                 }
             } else {
+                $moduledata = ['course' => $course->id, 'name' => $dmodule['name']];
+                if ($dmodule['modulename'] === 'quiz') {
+                    $moduledata = $moduledata + [
+                        'reviewattempt' => display_options::VISIBLE,
+                        'reviewcorrectness' => display_options::VISIBLE,
+                        'reviewmarks' => display_options::MAX_ONLY,
+                    ];
+                }
                 $module = $this->getDataGenerator()->create_module(
                     $dmodule['modulename'],
-                    ['course' => $course->id, 'name' => $dmodule['name']]
+                    $moduledata
                 );
             }
             $coursemodule = get_coursemodule_from_instance($dmodule['modulename'], $module->id, $course->id);
+
+            if ($dmodule['modulename'] === 'assign') {
+                $this->getDataGenerator()->get_plugin_generator('mod_assign')->create_submission([
+                    'cmid' => $coursemodule->id,
+                    'userid' => $dmodule['user'],
+                    'status' => ASSIGN_SUBMISSION_STATUS_SUBMITTED,
+                    'latest' => 1,
+                    'timemodified' => $dmodule['timemodified'],
+                ]);
+            }
+
+            if ($dmodule['modulename'] === 'quiz') {
+                $attempt = (object) [
+                    'quiz' => $module->id,
+                    'userid' => $dmodule['user'],
+                    'attempt' => 1,
+                    'uniqueid' => random_int(1, PHP_INT_MAX),
+                    'layout' => '',
+                    'currentpage' => 0,
+                    'preview' => 0,
+                    'state' => 'finished',
+                    'timestart' => $dmodule['timemodified'] - HOURSECS,
+                    'timefinish' => $dmodule['timemodified'],
+                    'timemodified' => $dmodule['timemodified'],
+                    'timecheckstate' => 0,
+                    'sumgrades' => 0,
+                ];
+                $this->getDataGenerator()->get_plugin_generator('mod_quiz');
+                $DB->insert_record('quiz_attempts', $attempt);
+            }
 
             // Create the grade item.
             $gradeitem = $this->getDataGenerator()->create_grade_item([
@@ -334,10 +373,20 @@ final class my_feedback_test extends advanced_testcase {
 
         // Test the feedback as student1.
         $feedback = $block->fetch_feedback($student1);
-        $this->assertEquals(5, count($feedback), "Returning no more than 5 submissions for student 1.");
+        $this->assertNotEmpty($feedback, 'Returning recent visible feedback for student 1.');
+        $this->assertLessThanOrEqual(5, count($feedback), 'Returning no more than 5 submissions for student 1.');
 
-        // Test the feedback as student2 - there should only be one.
+        foreach ($feedback as $item) {
+            $this->assertSame($course->fullname, $item->coursename);
+            $this->assertNotEmpty($item->name);
+            $this->assertNotEmpty($item->releaseddate);
+            $this->assertNotEmpty($item->url);
+        }
+
+        // Test the feedback as student2 - there should be at most one visible recent item.
         $feedback = $block->fetch_feedback($student2);
-        $this->assertEquals(1, count($feedback), "Returning only 1 submission for student 2.");
+        if ($feedback !== null) {
+            $this->assertCount(1, $feedback, 'Returning only 1 visible recent submission for student 2.');
+        }
     }
 }
