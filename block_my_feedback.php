@@ -207,7 +207,6 @@ class block_my_feedback extends block_base {
      * @param stdClass $user
      */
     public static function fetch_marking(stdClass $user): ?array {
-        global $DB;
         // Active user courses.
         $courses = enrol_get_all_users_courses($user->id, true, ['enddate']);
         // Marking.
@@ -245,8 +244,8 @@ class block_my_feedback extends block_base {
                 $cmid = $summative->cmid;
                 $mod = $modinfo->get_cm($cmid);
 
-                // Skip hidden mods.
-                if (!$mod->visible) {
+                // Skip hidden and unsupported mods.
+                if (!$mod->visible || !feedback_tracker_helper::is_supported_module($mod->modname)) {
                     continue;
                 }
 
@@ -261,17 +260,13 @@ class block_my_feedback extends block_base {
                 // If so should we only do it once we know we want to display it?
                 $assess->icon = course_summary_exporter::get_course_image($course);
 
-                if (!feedback_tracker_helper::is_supported_module($mod->modname)) {
-                    continue;
-                }
-
                 $modulehelper = module_helper::create($mod);
                 foreach ($modulehelper->get_marking_targets() as $target) {
                     $targetassess = clone $assess;
                     $targetassess->partid = $target->partid;
 
                     // Check mod target has duedate and requires marking.
-                    if (!self::add_mod_data($mod, $targetassess, $target->duedate)) {
+                    if (!self::add_mod_data($mod, $modulehelper, $targetassess, $target->duedate)) {
                         continue;
                     }
 
@@ -299,28 +294,16 @@ class block_my_feedback extends block_base {
      * Return mod target data - due date & require marking.
      *
      * @param cm_info $mod
+     * @param module_helper $modulehelper
      * @param stdClass $assess
      * @param int $duedate
      * @return bool
      */
-    public static function add_mod_data(cm_info $mod, stdClass $assess, int $duedate): bool {
-        global $DB;
-
-        $modulehelper = module_helper::create($mod);
-
+    public static function add_mod_data(cm_info $mod, module_helper $modulehelper, stdClass $assess, int $duedate): bool {
         // Check that mod has a due date, and the due date is in range.
         if (($duedate === 0) || !self::duedate_in_range($duedate)) {
             return false;
         }
-
-        // Get the grade item ID.
-        $params = [
-            'itemtype' => 'mod',
-            'itemnumber' => 0,
-            'itemmodule' => $mod->modname,
-            'iteminstance' => $mod->instance,
-        ];
-        $gradeitemid = $DB->get_field('grade_items', 'id', $params);
 
         // Check that mod has missing markings.
         $markeronly = true;
@@ -404,14 +387,15 @@ class block_my_feedback extends block_base {
             $modinfo = get_fast_modinfo($f->course);
             $cms = $modinfo->get_instances_of($f->modname);
             $cm = $cms[$f->instance] ?? null;
-            $modulehelper = $cm ? module_helper::create($cm) : null;
-            $course = $DB->get_record('course', ['id' => $f->course], '*', MUST_EXIST);
 
-            if (!$modulehelper) {
+            if (!$cm) {
                 continue;
             }
 
+            $modulehelper = $cm ? module_helper::create($cm) : null;
+            $course = $DB->get_record('course', ['id' => $f->course], '*', MUST_EXIST);
             $feedbackdata = $modulehelper->build_student_feedback_data($f, $course);
+
             if (!$feedbackdata) {
                 continue;
             }
@@ -457,10 +441,6 @@ class block_my_feedback extends block_base {
         $supported = $this->get_supported_types();
         $courses = enrol_get_all_users_courses($user->id, true, ['enddate']);
 
-        if (!$courses || !$supported) {
-            return [];
-        }
-
         $submissions = [];
 
         foreach ($courses as $course) {
@@ -475,12 +455,7 @@ class block_my_feedback extends block_base {
                 }
 
                 $modulehelper = module_helper::create($cm);
-                $records = $modulehelper->get_student_feedback_grade_records($user->id, $since);
-
-                foreach ($records as $record) {
-                    $record->cmid = $cm->id;
-                    $submissions[] = $record;
-                }
+                $submissions = $submissions + $modulehelper->get_student_feedback_grade_records($user->id, $since);
             }
         }
 

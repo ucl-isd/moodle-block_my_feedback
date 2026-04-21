@@ -16,8 +16,8 @@ Feature: Student feedback hides coursework marker identity when assessor anonymi
       | name        | shortname   | category | type |
       | Course Year | course_year | CLC      | text |
     And the following "courses" exist:
-      | fullname | shortname | format | customfield_course_year |
-      | Course 1 | C1        | topics | ##now##%Y##             |
+      | fullname | shortname | customfield_course_year |
+      | Course 1 | C1        | ##now##%Y##             |
     And the following "users" exist:
       | username | firstname | lastname | email                |
       | teacher1 | Teacher   | 1        | teacher1@example.com |

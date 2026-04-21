@@ -46,7 +46,6 @@ final class my_feedback_test extends advanced_testcase {
      * @param \stdClass $student1
      * @param \stdClass $student2
      * @return void
-     * @throws \coding_exception
      */
     private function setup_grade_data($course, $teacher, $student1, $student2): void {
         global $CFG, $DB;
@@ -222,8 +221,6 @@ final class my_feedback_test extends advanced_testcase {
      * Test the behaviour of get_submissions() method.
      *
      * @return void
-     * @throws \coding_exception
-     * @throws \dml_exception
      * @covers ::get_submission
      */
     public function test_get_submissions(): void {
@@ -278,8 +275,6 @@ final class my_feedback_test extends advanced_testcase {
      * Test submissions are returned from multiple enrolled courses.
      *
      * @return void
-     * @throws \coding_exception
-     * @throws \dml_exception
      * @covers ::get_submissions
      */
     public function test_get_submissions_from_multiple_courses(): void {
@@ -341,9 +336,6 @@ final class my_feedback_test extends advanced_testcase {
      * Assert that max 5 feedbacks are shown and only those not older than 3 month.
      *
      * @return void
-     * @throws \coding_exception
-     * @throws \dml_exception
-     * @throws \moodle_exception
      * @covers ::fetch_feedback
      */
     public function test_fetch_feedback(): void {
