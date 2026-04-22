@@ -12,4 +12,6 @@ For users who's role archetype is editingteacher the block shows a marker view, 
 
 The marker view uses https://github.com/ucl-isd/moodle-local_assess_type to get which assessments have been set as summative.
 
+Depends on Feedback Tracker https://github.com/ucl-isd/moodle-report_feedback_tracker
+
 
