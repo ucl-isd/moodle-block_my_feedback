@@ -266,7 +266,7 @@ class block_my_feedback extends block_base {
                     $targetassess->partid = $target->partid;
 
                     // Check mod target has duedate and requires marking.
-                    if (!self::add_mod_data($mod, $modulehelper, $targetassess, $target->duedate)) {
+                    if (!self::add_mod_data($modulehelper, $targetassess, $target->duedate)) {
                         continue;
                     }
 
@@ -293,13 +293,12 @@ class block_my_feedback extends block_base {
     /**
      * Return mod target data - due date & require marking.
      *
-     * @param cm_info $mod
      * @param module_helper $modulehelper
      * @param stdClass $assess
      * @param int $duedate
      * @return bool
      */
-    public static function add_mod_data(cm_info $mod, module_helper $modulehelper, stdClass $assess, int $duedate): bool {
+    public static function add_mod_data(module_helper $modulehelper, stdClass $assess, int $duedate): bool {
         // Check that mod has a due date, and the due date is in range.
         if (($duedate === 0) || !self::duedate_in_range($duedate)) {
             return false;

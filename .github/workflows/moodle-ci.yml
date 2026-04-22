@@ -94,6 +94,7 @@ jobs:
         env:
           DB: ${{ matrix.database }}
           MOODLE_BRANCH: ${{ matrix.moodle-branch }}
+          GHA_MOODLE_READ_ACCESS: ${{ secrets.GHA_MOODLE_READ_ACCESS }}
           # Uncomment this to run Behat tests using the Moodle App.
           # MOODLE_APP: 'true'
 
