@@ -41,7 +41,7 @@ class behat_block_my_feedback extends behat_base {
      * @return void
      */
     public function allocate_assignment_markers(string $assignname, TableNode $table): void {
-        global $DB;
+        global $CFG, $DB;
 
         $assignid = $DB->get_field('assign', 'id', ['name' => $assignname], MUST_EXIST);
         $cm = get_coursemodule_from_instance('assign', $assignid, 0, false, MUST_EXIST);
@@ -51,15 +51,29 @@ class behat_block_my_feedback extends behat_base {
             $studentid = $DB->get_field('user', 'id', ['username' => $allocation['Student']], MUST_EXIST);
             $allocatedmarker = $DB->get_field('user', 'id', ['username' => $allocation['Marker']], MUST_EXIST);
 
-            if ($record = $DB->get_record('assign_user_flags', ['assignment' => $assignid, 'userid' => $studentid])) {
-                $record->allocatedmarker = $allocatedmarker;
-                $DB->update_record('assign_user_flags', $record);
+            // From MOODLE_502_STABLE on allocated markers have their own database table.
+            if ($CFG->branch >= 502) {
+                if ($record = $DB->get_record('assign_allocated_marker', ['assignment' => $assignid, 'student' => $studentid])) {
+                    $record->marker = $allocatedmarker;
+                    $DB->update_record('assign_allocated_marker', $record);
+                } else {
+                    $record = new \stdClass();
+                    $record->assignment = $assignid;
+                    $record->student = $studentid;
+                    $record->marker = $allocatedmarker;
+                    $DB->insert_record('assign_allocated_marker', $record);
+                }
             } else {
-                $record = new \stdClass();
-                $record->assignment = $assignid;
-                $record->userid = $studentid;
-                $record->allocatedmarker = $allocatedmarker;
-                $DB->insert_record('assign_user_flags', $record);
+                if ($record = $DB->get_record('assign_user_flags', ['assignment' => $assignid, 'userid' => $studentid])) {
+                    $record->allocatedmarker = $allocatedmarker;
+                    $DB->update_record('assign_user_flags', $record);
+                } else {
+                    $record = new \stdClass();
+                    $record->assignment = $assignid;
+                    $record->userid = $studentid;
+                    $record->allocatedmarker = $allocatedmarker;
+                    $DB->insert_record('assign_user_flags', $record);
+                }
             }
         }
 
