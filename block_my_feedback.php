@@ -31,22 +31,22 @@ class block_my_feedback extends block_base {
     /**
      * @var array array of roles a marker may have.
      */
-    private static array $markerroles;
+    private array $markerroles;
 
     /**
      * @var array array of roles a student may have.
      */
-    private static array $studentroles;
+    private array $studentroles;
 
     /**
      * @var bool marker status.
      */
-    private static bool $ismarker;
+    private bool $ismarker;
 
     /**
      * @var bool student status.
      */
-    private static bool $isstudent;
+    private bool $isstudent;
 
     /**
      * Initialises the block.
@@ -54,10 +54,10 @@ class block_my_feedback extends block_base {
      * @return void
      */
     public function init() {
-        self::$markerroles = self::get_marker_role_ids();
-        self::$studentroles = self::get_student_role_ids();
-        self::$ismarker = self::is_marker();
-        self::$isstudent = self::is_student();
+        $this->markerroles = $this->get_marker_role_ids();
+        $this->studentroles = $this->get_student_role_ids();
+        $this->ismarker = $this->is_marker();
+        $this->isstudent = $this->is_student();
 
         // No title for the block as each section will have one.
         $this->title = '';
@@ -68,7 +68,7 @@ class block_my_feedback extends block_base {
      *
      * @return array
      */
-    private static function get_marker_role_ids(): array {
+    private function get_marker_role_ids(): array {
         global $DB;
 
         return $DB->get_fieldset_select(
@@ -89,7 +89,7 @@ class block_my_feedback extends block_base {
      *
      * @return array
      */
-    private static function get_student_role_ids(): array {
+    private function get_student_role_ids(): array {
         global $DB;
 
         return $DB->get_fieldset_select(
@@ -120,13 +120,13 @@ class block_my_feedback extends block_base {
         $template = new stdClass();
 
         // Marker content.
-        if (self::$ismarker && $template->markingmods = self::fetch_marking($USER)) {
+        if ($this->ismarker && $template->markingmods = $this->fetch_marking($USER)) {
             $template->showmarkings = true;
             $template->markingheader = get_string('markingfor', 'block_my_feedback', $USER->firstname);
         }
 
         // Student content.
-        if (self::$isstudent && $template->assessmentmods = $this->fetch_feedback($USER)) {
+        if ($this->isstudent && $template->assessmentmods = $this->fetch_feedback($USER)) {
             $template->showassessments = true;
             $template->assessmentheader = get_string('feedbackfor', 'block_my_feedback', $USER->firstname);
         }
@@ -144,10 +144,10 @@ class block_my_feedback extends block_base {
      *
      * @return bool
      */
-    private static function is_marker(): bool {
+    private function is_marker(): bool {
         global $DB, $USER;
 
-        if ($roles = self::$markerroles) {
+        if ($roles = $this->markerroles) {
             // Check if user has editingteacher role on any courses.
             [$roles, $params] = $DB->get_in_or_equal($roles, SQL_PARAMS_NAMED);
             $params['userid'] = $USER->id;
@@ -167,11 +167,11 @@ class block_my_feedback extends block_base {
      * @param stdClass $course
      * @return bool
      */
-    private static function is_course_marker(stdClass $course): bool {
+    private function is_course_marker(stdClass $course): bool {
         global $USER;
 
-        // Check if user has a merker role in the given course.
-        foreach (self::$markerroles as $role) {
+        // Check if user has a marker role in the given course.
+        foreach ($this->markerroles as $role) {
             if (user_has_role_assignment($USER->id, (int)$role, $course->ctxid)) {
                 return true;
             }
@@ -184,10 +184,10 @@ class block_my_feedback extends block_base {
      *
      * @return bool
      */
-    private static function is_student(): bool {
+    private function is_student(): bool {
         global $DB, $USER;
 
-        if ($roles = self::$studentroles) {
+        if ($roles = $this->studentroles) {
             // Check if user has a student role on any courses.
             [$roles, $params] = $DB->get_in_or_equal($roles, SQL_PARAMS_NAMED);
             $params['userid'] = $USER->id;
@@ -205,8 +205,9 @@ class block_my_feedback extends block_base {
      * Return marking for a user.
      *
      * @param stdClass $user
+     * @return array|null
      */
-    public static function fetch_marking(stdClass $user): ?array {
+    public function fetch_marking(stdClass $user): ?array {
         // Active user courses.
         $courses = enrol_get_all_users_courses($user->id, true, ['enddate']);
         // Marking.
@@ -214,12 +215,12 @@ class block_my_feedback extends block_base {
 
         foreach ($courses as $course) {
             // Skip hidden or non-current courses.
-            if (!$course->visible || !self::is_course_current($course)) {
+            if (!$course->visible || !$this->is_course_current($course)) {
                 continue;
             }
 
             // Skip if user has no teacher role in the course.
-            if (!self::is_course_marker($course)) {
+            if (!$this->is_course_marker($course)) {
                 continue;
             }
 
@@ -266,7 +267,7 @@ class block_my_feedback extends block_base {
                     $targetassess->partid = $target->partid;
 
                     // Check mod target has duedate and requires marking.
-                    if (!self::add_mod_data($modulehelper, $targetassess, $target->duedate)) {
+                    if (!$this->add_mod_data($modulehelper, $targetassess, $target->duedate)) {
                         continue;
                     }
 
@@ -298,9 +299,9 @@ class block_my_feedback extends block_base {
      * @param int $duedate
      * @return bool
      */
-    public static function add_mod_data(module_helper $modulehelper, stdClass $assess, int $duedate): bool {
+    public function add_mod_data(module_helper $modulehelper, stdClass $assess, int $duedate): bool {
         // Check that mod has a due date, and the due date is in range.
-        if (($duedate === 0) || !self::duedate_in_range($duedate)) {
+        if (($duedate === 0) || !$this->duedate_in_range($duedate)) {
             return false;
         }
 
@@ -325,8 +326,9 @@ class block_my_feedback extends block_base {
      * Return if course has started (startdate) and has not ended (enddate).
      *
      * @param stdClass $course
+     * @return bool
      */
-    public static function is_course_current(stdClass $course): bool {
+    public function is_course_current(stdClass $course): bool {
         // Check if the course has started.
         if ($course->startdate > time()) {
             return false;
@@ -346,11 +348,12 @@ class block_my_feedback extends block_base {
     }
 
     /**
-     * Return if a due date in the date range.
+     * Return if a due date is in the date range.
      *
      * @param int $duedate
+     * @return int|null
      */
-    public static function duedate_in_range(int $duedate): ?int {
+    public function duedate_in_range(int $duedate): ?int {
         $startdate = strtotime('-2 month');
         $cutoffdate = strtotime('+1 month');
 
@@ -362,11 +365,12 @@ class block_my_feedback extends block_base {
     }
 
     /**
-     *  Get my feedback call for a user.
+     * Get my feedback for a user.
      *
      * Return users 5 most recent feedbacks.
+     *
      * @param stdClass $user
-     * @return array feedback items.
+     * @return array|null feedback items.
      */
     public function fetch_feedback($user): ?array {
         global $DB;
@@ -391,7 +395,7 @@ class block_my_feedback extends block_base {
                 continue;
             }
 
-            $modulehelper = $cm ? module_helper::create($cm) : null;
+            $modulehelper = module_helper::create($cm);
             $course = $DB->get_record('course', ['id' => $f->course], '*', MUST_EXIST);
             $feedbackdata = $modulehelper->build_student_feedback_data($f, $course);
 
@@ -429,7 +433,7 @@ class block_my_feedback extends block_base {
     }
 
     /**
-     * Get all submissions from supported module types for a user that are no older than 3 month.
+     * Get all submissions from supported module types for a user that are no older than 3 months.
      *
      * @param stdClass $user
      * @return array
@@ -443,7 +447,7 @@ class block_my_feedback extends block_base {
         $submissions = [];
 
         foreach ($courses as $course) {
-            if (!$course->visible || !self::is_course_current($course)) {
+            if (!$course->visible || !$this->is_course_current($course)) {
                 continue;
             }
 
@@ -469,7 +473,6 @@ class block_my_feedback extends block_base {
      * @return array
      */
     public function get_supported_types(): array {
-
         $supported = [];
 
         $types = [
@@ -491,7 +494,6 @@ class block_my_feedback extends block_base {
 
         return $supported;
     }
-
 
     /**
      * Defines in which pages this block can be added.
