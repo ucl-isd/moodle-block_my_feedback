@@ -30,10 +30,55 @@ use mod_quiz\question\display_options;
  * @coversDefaultClass \block_my_feedback
  */
 final class my_feedback_test extends advanced_testcase {
+    /** @var \stdClass The course used in tests. */
+    private \stdClass $course;
+
+    /** @var \stdClass The first student used in tests. */
+    private \stdClass $student1;
+
+    /** @var \stdClass The second student used in tests. */
+    private \stdClass $student2;
+
+    /** @var \stdClass The teacher used in tests. */
+    private \stdClass $teacher;
+
+    /** @var \block_my_feedback The block instance used in tests. */
+    private \block_my_feedback $block;
+
     public static function setUpBeforeClass(): void {
         require_once(__DIR__ . '/../../moodleblock.class.php');
         require_once(__DIR__ . '/../block_my_feedback.php');
         parent::setUpBeforeClass();
+    }
+
+    /**
+     * Set up common test fixtures.
+     *
+     * @return void
+     */
+    protected function setUp(): void {
+        parent::setUp();
+        $this->resetAfterTest();
+        $this->setAdminUser();
+
+        $this->course = $this->getDataGenerator()->create_course();
+
+        $page = new \moodle_page();
+        $page->set_context(context_course::instance($this->course->id));
+        $page->set_pagelayout('course');
+
+        $this->student1 = $this->getDataGenerator()->create_user();
+        $this->student2 = $this->getDataGenerator()->create_user();
+        $this->teacher  = $this->getDataGenerator()->create_user();
+
+        $this->getDataGenerator()->enrol_user($this->student1->id, $this->course->id, 'student');
+        $this->getDataGenerator()->enrol_user($this->student2->id, $this->course->id, 'student');
+        $this->getDataGenerator()->enrol_user($this->teacher->id, $this->course->id, 'teacher');
+
+        $this->setup_grade_data($this->course, $this->teacher, $this->student1, $this->student2);
+
+        $this->block = new \block_my_feedback();
+        $this->block->page = $page;
     }
 
     /**
@@ -151,10 +196,10 @@ final class my_feedback_test extends advanced_testcase {
                 $moduledata = ['course' => $course->id, 'name' => $dmodule['name']];
                 if ($dmodule['modulename'] === 'quiz') {
                     $moduledata = $moduledata + [
-                        'reviewattempt' => display_options::VISIBLE,
-                        'reviewcorrectness' => display_options::VISIBLE,
-                        'reviewmarks' => display_options::MAX_ONLY,
-                    ];
+                            'reviewattempt' => display_options::VISIBLE,
+                            'reviewcorrectness' => display_options::VISIBLE,
+                            'reviewmarks' => display_options::MAX_ONLY,
+                        ];
                 }
                 $module = $this->getDataGenerator()->create_module(
                     $dmodule['modulename'],
@@ -219,49 +264,23 @@ final class my_feedback_test extends advanced_testcase {
      * Test the behaviour of get_submissions() method.
      *
      * @return void
-     * @covers ::get_submission
+     * @covers ::get_submissions
      */
     public function test_get_submissions(): void {
-        $this->resetAfterTest();
-        $this->setAdminUser();
-
-        // Create a course and prepare the page where the block will be added.
-        $course = $this->getDataGenerator()->create_course();
-        $page = new \moodle_page();
-        $page->set_context(context_course::instance($course->id));
-        $page->set_pagelayout('course');
-
-        // Create users and enrol them.
-        $student1 = $this->getDataGenerator()->create_user();
-        $student2 = $this->getDataGenerator()->create_user();
-        $teacher = $this->getDataGenerator()->create_user();
-
-        $this->getDataGenerator()->enrol_user($student1->id, $course->id, 'student');
-        $this->getDataGenerator()->enrol_user($student2->id, $course->id, 'student');
-        $this->getDataGenerator()->enrol_user($teacher->id, $course->id, 'teacher');
-
-        // Setup some dummy grade data.
-        $this->setup_grade_data($course, $teacher, $student1, $student2);
-
-        $block = new \block_my_feedback();
-        $block->page = $page;
-
-        // Test the submissions returned as student 1.
-        $submissions = $block->get_submissions($student1);
+        $submissions = $this->block->get_submissions($this->student1);
         foreach ($submissions as $submission) {
             // Assert that all submissions are by the given user.
-            $this->assertEquals($student1->id, $submission->userid);
+            $this->assertEquals($this->student1->id, $submission->userid);
             // Assert the result only contains submissions of certain types.
             $this->assertTrue(in_array($submission->modname, ['assign', 'quiz', 'turnitintooltwo']));
             // Assert the result only contains submissions not older than 3 month.
             $this->assertTrue($submission->lastmodified >= strtotime('-3 month'));
         }
 
-        // Test the submissions returned as student 2.
-        $submissions = $block->get_submissions($student2);
+        $submissions = $this->block->get_submissions($this->student2);
         foreach ($submissions as $submission) {
             // Assert that all submissions are by the given user.
-            $this->assertEquals($student2->id, $submission->userid);
+            $this->assertEquals($this->student2->id, $submission->userid);
             // Assert the result only contains submissions of certain types.
             $this->assertTrue(in_array($submission->modname, ['assign', 'quiz', 'turnitintooltwo']));
             // Assert the result only contains submissions not older than 3 month.
@@ -276,9 +295,7 @@ final class my_feedback_test extends advanced_testcase {
      * @covers ::get_submissions
      */
     public function test_get_submissions_from_multiple_courses(): void {
-        $this->resetAfterTest();
-        $this->setAdminUser();
-
+        // This test needs its own course pair, so create them independently.
         $course1 = $this->getDataGenerator()->create_course(['shortname' => 'C1']);
         $course2 = $this->getDataGenerator()->create_course(['shortname' => 'C2']);
 
@@ -337,44 +354,20 @@ final class my_feedback_test extends advanced_testcase {
      * @covers ::fetch_feedback
      */
     public function test_fetch_feedback(): void {
-        $this->resetAfterTest();
-        $this->setAdminUser();
-
-        // Create a course and prepare the page where the block will be added.
-        $course = $this->getDataGenerator()->create_course();
-        $page = new \moodle_page();
-        $page->set_context(context_course::instance($course->id));
-        $page->set_pagelayout('course');
-
-        // Create users and enrol them.
-        $student1 = $this->getDataGenerator()->create_user();
-        $student2 = $this->getDataGenerator()->create_user();
-        $teacher = $this->getDataGenerator()->create_user();
-
-        $this->getDataGenerator()->enrol_user($student1->id, $course->id, 'student');
-        $this->getDataGenerator()->enrol_user($student2->id, $course->id, 'student');
-        $this->getDataGenerator()->enrol_user($teacher->id, $course->id, 'teacher');
-
-        // Setup some dummy grade data.
-        $this->setup_grade_data($course, $teacher, $student1, $student2);
-
-        $block = new \block_my_feedback();
-        $block->page = $page;
-
         // Test the feedback as student1.
-        $feedback = $block->fetch_feedback($student1);
+        $feedback = $this->block->fetch_feedback($this->student1);
         $this->assertNotEmpty($feedback, 'Returning recent visible feedback for student 1.');
         $this->assertLessThanOrEqual(5, count($feedback), 'Returning no more than 5 submissions for student 1.');
 
         foreach ($feedback as $item) {
-            $this->assertSame($course->fullname, $item->coursename);
+            $this->assertSame($this->course->fullname, $item->coursename);
             $this->assertNotEmpty($item->name);
             $this->assertNotEmpty($item->releaseddate);
             $this->assertNotEmpty($item->url);
         }
 
         // Test the feedback as student2 - there should be at most one visible recent item.
-        $feedback = $block->fetch_feedback($student2);
+        $feedback = $this->block->fetch_feedback($this->student2);
         if ($feedback !== null) {
             $this->assertCount(1, $feedback, 'Returning only 1 visible recent submission for student 2.');
         }
