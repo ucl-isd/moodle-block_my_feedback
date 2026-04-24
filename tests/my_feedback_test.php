@@ -17,9 +17,7 @@
 namespace block_my_feedback;
 
 use advanced_testcase;
-use block_my_feedback;
 use context_course;
-use core\context\course;
 use mod_quiz\question\display_options;
 
 /**

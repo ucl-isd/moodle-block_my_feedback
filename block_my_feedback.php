@@ -16,7 +16,6 @@
 
 use core_course\external\course_summary_exporter;
 use local_assess_type\assess_type; // UCL plugin.
-use mod_quiz\question\display_options;
 use report_feedback_tracker\local\helper as feedback_tracker_helper; // UCL plugin.
 use report_feedback_tracker\local\module_helper;
 
