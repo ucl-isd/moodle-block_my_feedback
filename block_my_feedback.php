@@ -407,7 +407,6 @@ class block_my_feedback extends block_base {
             }
 
             $feedback = new stdClass();
-            $feedback->id = $f->gradeid;
             $feedback->releaseddate = date('jS M', $f->lastmodified);
             $feedback->name = $f->name;
             $feedback->url = new moodle_url('/mod/' . $f->modname . '/view.php', ['id' => $f->cmid]);
