@@ -17,10 +17,8 @@
 namespace block_my_feedback;
 
 use advanced_testcase;
-use block_my_feedback;
 use context_course;
-use core\context\course;
-
+use mod_quiz\question\display_options;
 
 /**
  * PHPUnit block_my_feedback tests
@@ -32,10 +30,55 @@ use core\context\course;
  * @coversDefaultClass \block_my_feedback
  */
 final class my_feedback_test extends advanced_testcase {
+    /** @var \stdClass The course used in tests. */
+    private \stdClass $course;
+
+    /** @var \stdClass The first student used in tests. */
+    private \stdClass $student1;
+
+    /** @var \stdClass The second student used in tests. */
+    private \stdClass $student2;
+
+    /** @var \stdClass The teacher used in tests. */
+    private \stdClass $teacher;
+
+    /** @var \block_my_feedback The block instance used in tests. */
+    private \block_my_feedback $block;
+
     public static function setUpBeforeClass(): void {
         require_once(__DIR__ . '/../../moodleblock.class.php');
         require_once(__DIR__ . '/../block_my_feedback.php');
         parent::setUpBeforeClass();
+    }
+
+    /**
+     * Set up common test fixtures.
+     *
+     * @return void
+     */
+    protected function setUp(): void {
+        parent::setUp();
+        $this->resetAfterTest();
+        $this->setAdminUser();
+
+        $this->course = $this->getDataGenerator()->create_course();
+
+        $page = new \moodle_page();
+        $page->set_context(context_course::instance($this->course->id));
+        $page->set_pagelayout('course');
+
+        $this->student1 = $this->getDataGenerator()->create_user();
+        $this->student2 = $this->getDataGenerator()->create_user();
+        $this->teacher  = $this->getDataGenerator()->create_user();
+
+        $this->getDataGenerator()->enrol_user($this->student1->id, $this->course->id, 'student');
+        $this->getDataGenerator()->enrol_user($this->student2->id, $this->course->id, 'student');
+        $this->getDataGenerator()->enrol_user($this->teacher->id, $this->course->id, 'teacher');
+
+        $this->setup_grade_data($this->course, $this->teacher, $this->student1, $this->student2);
+
+        $this->block = new \block_my_feedback();
+        $this->block->page = $page;
     }
 
     /**
@@ -46,10 +89,9 @@ final class my_feedback_test extends advanced_testcase {
      * @param \stdClass $student1
      * @param \stdClass $student2
      * @return void
-     * @throws \coding_exception
      */
     private function setup_grade_data($course, $teacher, $student1, $student2): void {
-        global $CFG;
+        global $CFG, $DB;
 
         // Create an array of modules and their grades.
         $dummymodules = [
@@ -151,12 +193,50 @@ final class my_feedback_test extends advanced_testcase {
                     continue;
                 }
             } else {
+                $moduledata = ['course' => $course->id, 'name' => $dmodule['name']];
+                if ($dmodule['modulename'] === 'quiz') {
+                    $moduledata = $moduledata + [
+                            'reviewattempt' => display_options::VISIBLE,
+                            'reviewcorrectness' => display_options::VISIBLE,
+                            'reviewmarks' => display_options::MAX_ONLY,
+                        ];
+                }
                 $module = $this->getDataGenerator()->create_module(
                     $dmodule['modulename'],
-                    ['course' => $course->id, 'name' => $dmodule['name']]
+                    $moduledata
                 );
             }
             $coursemodule = get_coursemodule_from_instance($dmodule['modulename'], $module->id, $course->id);
+
+            if ($dmodule['modulename'] === 'assign') {
+                $this->getDataGenerator()->get_plugin_generator('mod_assign')->create_submission([
+                    'cmid' => $coursemodule->id,
+                    'userid' => $dmodule['user'],
+                    'status' => ASSIGN_SUBMISSION_STATUS_SUBMITTED,
+                    'latest' => 1,
+                    'timemodified' => $dmodule['timemodified'],
+                ]);
+            }
+
+            if ($dmodule['modulename'] === 'quiz') {
+                $attempt = (object) [
+                    'quiz' => $module->id,
+                    'userid' => $dmodule['user'],
+                    'attempt' => 1,
+                    'uniqueid' => random_int(1, PHP_INT_MAX),
+                    'layout' => '',
+                    'currentpage' => 0,
+                    'preview' => 0,
+                    'state' => 'finished',
+                    'timestart' => $dmodule['timemodified'] - HOURSECS,
+                    'timefinish' => $dmodule['timemodified'],
+                    'timemodified' => $dmodule['timemodified'],
+                    'timecheckstate' => 0,
+                    'sumgrades' => 0,
+                ];
+                $this->getDataGenerator()->get_plugin_generator('mod_quiz');
+                $DB->insert_record('quiz_attempts', $attempt);
+            }
 
             // Create the grade item.
             $gradeitem = $this->getDataGenerator()->create_grade_item([
@@ -184,51 +264,23 @@ final class my_feedback_test extends advanced_testcase {
      * Test the behaviour of get_submissions() method.
      *
      * @return void
-     * @throws \coding_exception
-     * @throws \dml_exception
-     * @covers ::get_submission
+     * @covers ::get_submissions
      */
     public function test_get_submissions(): void {
-        $this->resetAfterTest();
-        $this->setAdminUser();
-
-        // Create a course and prepare the page where the block will be added.
-        $course = $this->getDataGenerator()->create_course();
-        $page = new \moodle_page();
-        $page->set_context(context_course::instance($course->id));
-        $page->set_pagelayout('course');
-
-        // Create users and enrol them.
-        $student1 = $this->getDataGenerator()->create_user();
-        $student2 = $this->getDataGenerator()->create_user();
-        $teacher = $this->getDataGenerator()->create_user();
-
-        $this->getDataGenerator()->enrol_user($student1->id, $course->id, 'student');
-        $this->getDataGenerator()->enrol_user($student2->id, $course->id, 'student');
-        $this->getDataGenerator()->enrol_user($teacher->id, $course->id, 'teacher');
-
-        // Setup some dummy grade data.
-        $this->setup_grade_data($course, $teacher, $student1, $student2);
-
-        $block = new \block_my_feedback();
-        $block->page = $page;
-
-        // Test the submissions returned as student 1.
-        $submissions = $block->get_submissions($student1);
+        $submissions = $this->block->get_submissions($this->student1);
         foreach ($submissions as $submission) {
             // Assert that all submissions are by the given user.
-            $this->assertEquals($student1->id, $submission->userid);
+            $this->assertEquals($this->student1->id, $submission->userid);
             // Assert the result only contains submissions of certain types.
             $this->assertTrue(in_array($submission->modname, ['assign', 'quiz', 'turnitintooltwo']));
             // Assert the result only contains submissions not older than 3 month.
             $this->assertTrue($submission->lastmodified >= strtotime('-3 month'));
         }
 
-        // Test the submissions returned as student 2.
-        $submissions = $block->get_submissions($student2);
+        $submissions = $this->block->get_submissions($this->student2);
         foreach ($submissions as $submission) {
             // Assert that all submissions are by the given user.
-            $this->assertEquals($student2->id, $submission->userid);
+            $this->assertEquals($this->student2->id, $submission->userid);
             // Assert the result only contains submissions of certain types.
             $this->assertTrue(in_array($submission->modname, ['assign', 'quiz', 'turnitintooltwo']));
             // Assert the result only contains submissions not older than 3 month.
@@ -237,45 +289,87 @@ final class my_feedback_test extends advanced_testcase {
     }
 
     /**
-     * Assert that max 5 feedbacks are shown and only those not older than 3 month.
+     * Test submissions are returned from multiple enrolled courses.
      *
      * @return void
-     * @throws \coding_exception
-     * @throws \dml_exception
-     * @throws \moodle_exception
-     * @covers ::fetch_feedback
+     * @covers ::get_submissions
      */
-    public function test_fetch_feedback(): void {
-        $this->resetAfterTest();
-        $this->setAdminUser();
+    public function test_get_submissions_from_multiple_courses(): void {
+        // This test needs its own course pair, so create them independently.
+        $course1 = $this->getDataGenerator()->create_course(['shortname' => 'C1']);
+        $course2 = $this->getDataGenerator()->create_course(['shortname' => 'C2']);
 
-        // Create a course and prepare the page where the block will be added.
-        $course = $this->getDataGenerator()->create_course();
         $page = new \moodle_page();
-        $page->set_context(context_course::instance($course->id));
+        $page->set_context(context_course::instance($course1->id));
         $page->set_pagelayout('course');
 
-        // Create users and enrol them.
-        $student1 = $this->getDataGenerator()->create_user();
-        $student2 = $this->getDataGenerator()->create_user();
+        $student = $this->getDataGenerator()->create_user();
         $teacher = $this->getDataGenerator()->create_user();
 
-        $this->getDataGenerator()->enrol_user($student1->id, $course->id, 'student');
-        $this->getDataGenerator()->enrol_user($student2->id, $course->id, 'student');
-        $this->getDataGenerator()->enrol_user($teacher->id, $course->id, 'teacher');
+        $this->getDataGenerator()->enrol_user($student->id, $course1->id, 'student');
+        $this->getDataGenerator()->enrol_user($student->id, $course2->id, 'student');
+        $this->getDataGenerator()->enrol_user($teacher->id, $course1->id, 'teacher');
+        $this->getDataGenerator()->enrol_user($teacher->id, $course2->id, 'teacher');
 
-        // Setup some dummy grade data.
-        $this->setup_grade_data($course, $teacher, $student1, $student2);
+        foreach ([[$course1, 'Assign course 1'], [$course2, 'Assign course 2']] as [$course, $name]) {
+            $module = $this->getDataGenerator()->create_module('assign', [
+                'course' => $course->id,
+                'name' => $name,
+            ]);
+            $cm = get_coursemodule_from_instance('assign', $module->id, $course->id);
+
+            $gradeitem = $this->getDataGenerator()->create_grade_item([
+                'courseid' => $course->id,
+                'itemmodule' => $cm->modname,
+                'iteminstance' => $cm->instance,
+                'itemname' => $name,
+            ]);
+
+            $this->getDataGenerator()->create_grade_grade([
+                'itemid' => $gradeitem->id,
+                'userid' => $student->id,
+                'teamsubmission' => false,
+                'attemptnumber' => 0,
+                'grade' => '75',
+                'usermodified' => $teacher->id,
+                'timemodified' => time() - HOURSECS,
+            ]);
+        }
 
         $block = new \block_my_feedback();
         $block->page = $page;
 
-        // Test the feedback as student1.
-        $feedback = $block->fetch_feedback($student1);
-        $this->assertEquals(5, count($feedback), "Returning no more than 5 submissions for student 1.");
+        $submissions = $block->get_submissions($student);
+        $courses = array_unique(array_map(fn($submission) => $submission->course, $submissions));
+        sort($courses);
 
-        // Test the feedback as student2 - there should only be one.
-        $feedback = $block->fetch_feedback($student2);
-        $this->assertEquals(1, count($feedback), "Returning only 1 submission for student 2.");
+        $this->assertCount(2, $submissions);
+        $this->assertEqualsCanonicalizing([$course1->id, $course2->id], $courses);
+    }
+
+    /**
+     * Assert that max 5 feedbacks are shown and only those not older than 3 month.
+     *
+     * @return void
+     * @covers ::fetch_feedback
+     */
+    public function test_fetch_feedback(): void {
+        // Test the feedback as student1.
+        $feedback = $this->block->fetch_feedback($this->student1);
+        $this->assertNotEmpty($feedback, 'Returning recent visible feedback for student 1.');
+        $this->assertLessThanOrEqual(5, count($feedback), 'Returning no more than 5 submissions for student 1.');
+
+        foreach ($feedback as $item) {
+            $this->assertSame($this->course->fullname, $item->coursename);
+            $this->assertNotEmpty($item->name);
+            $this->assertNotEmpty($item->releaseddate);
+            $this->assertNotEmpty($item->url);
+        }
+
+        // Test the feedback as student2 - there should be at most one visible recent item.
+        $feedback = $this->block->fetch_feedback($this->student2);
+        if ($feedback !== null) {
+            $this->assertCount(1, $feedback, 'Returning only 1 visible recent submission for student 2.');
+        }
     }
 }

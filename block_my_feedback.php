@@ -16,9 +16,8 @@
 
 use core_course\external\course_summary_exporter;
 use local_assess_type\assess_type; // UCL plugin.
-use mod_quiz\question\display_options;
-use report_feedback_tracker\local\admin as feedback_tracker; // UCL plugin.
 use report_feedback_tracker\local\helper as feedback_tracker_helper; // UCL plugin.
+use report_feedback_tracker\local\module_helper;
 
 /**
  * Block definition class for the block_my_feedback plugin.
@@ -31,22 +30,22 @@ class block_my_feedback extends block_base {
     /**
      * @var array array of roles a marker may have.
      */
-    private static array $markerroles;
+    private array $markerroles;
 
     /**
      * @var array array of roles a student may have.
      */
-    private static array $studentroles;
+    private array $studentroles;
 
     /**
      * @var bool marker status.
      */
-    private static bool $ismarker;
+    private bool $ismarker;
 
     /**
      * @var bool student status.
      */
-    private static bool $isstudent;
+    private bool $isstudent;
 
     /**
      * Initialises the block.
@@ -54,10 +53,10 @@ class block_my_feedback extends block_base {
      * @return void
      */
     public function init() {
-        self::$markerroles = self::get_marker_role_ids();
-        self::$studentroles = self::get_student_role_ids();
-        self::$ismarker = self::is_marker();
-        self::$isstudent = self::is_student();
+        $this->markerroles = $this->get_marker_role_ids();
+        $this->studentroles = $this->get_student_role_ids();
+        $this->ismarker = $this->is_marker();
+        $this->isstudent = $this->is_student();
 
         // No title for the block as each section will have one.
         $this->title = '';
@@ -68,7 +67,7 @@ class block_my_feedback extends block_base {
      *
      * @return array
      */
-    private static function get_marker_role_ids(): array {
+    private function get_marker_role_ids(): array {
         global $DB;
 
         return $DB->get_fieldset_select(
@@ -89,7 +88,7 @@ class block_my_feedback extends block_base {
      *
      * @return array
      */
-    private static function get_student_role_ids(): array {
+    private function get_student_role_ids(): array {
         global $DB;
 
         return $DB->get_fieldset_select(
@@ -120,13 +119,13 @@ class block_my_feedback extends block_base {
         $template = new stdClass();
 
         // Marker content.
-        if (self::$ismarker && $template->markingmods = self::fetch_marking($USER)) {
+        if ($this->ismarker && $template->markingmods = $this->fetch_marking($USER)) {
             $template->showmarkings = true;
             $template->markingheader = get_string('markingfor', 'block_my_feedback', $USER->firstname);
         }
 
         // Student content.
-        if (self::$isstudent && $template->assessmentmods = $this->fetch_feedback($USER)) {
+        if ($this->isstudent && $template->assessmentmods = $this->fetch_feedback($USER)) {
             $template->showassessments = true;
             $template->assessmentheader = get_string('feedbackfor', 'block_my_feedback', $USER->firstname);
         }
@@ -144,10 +143,10 @@ class block_my_feedback extends block_base {
      *
      * @return bool
      */
-    private static function is_marker(): bool {
+    private function is_marker(): bool {
         global $DB, $USER;
 
-        if ($roles = self::$markerroles) {
+        if ($roles = $this->markerroles) {
             // Check if user has editingteacher role on any courses.
             [$roles, $params] = $DB->get_in_or_equal($roles, SQL_PARAMS_NAMED);
             $params['userid'] = $USER->id;
@@ -167,11 +166,11 @@ class block_my_feedback extends block_base {
      * @param stdClass $course
      * @return bool
      */
-    private static function is_course_marker(stdClass $course): bool {
+    private function is_course_marker(stdClass $course): bool {
         global $USER;
 
-        // Check if user has a merker role in the given course.
-        foreach (self::$markerroles as $role) {
+        // Check if user has a marker role in the given course.
+        foreach ($this->markerroles as $role) {
             if (user_has_role_assignment($USER->id, (int)$role, $course->ctxid)) {
                 return true;
             }
@@ -184,10 +183,10 @@ class block_my_feedback extends block_base {
      *
      * @return bool
      */
-    private static function is_student(): bool {
+    private function is_student(): bool {
         global $DB, $USER;
 
-        if ($roles = self::$studentroles) {
+        if ($roles = $this->studentroles) {
             // Check if user has a student role on any courses.
             [$roles, $params] = $DB->get_in_or_equal($roles, SQL_PARAMS_NAMED);
             $params['userid'] = $USER->id;
@@ -205,9 +204,9 @@ class block_my_feedback extends block_base {
      * Return marking for a user.
      *
      * @param stdClass $user
+     * @return array|null
      */
-    public static function fetch_marking(stdClass $user): ?array {
-        global $DB;
+    public function fetch_marking(stdClass $user): ?array {
         // Active user courses.
         $courses = enrol_get_all_users_courses($user->id, true, ['enddate']);
         // Marking.
@@ -215,12 +214,12 @@ class block_my_feedback extends block_base {
 
         foreach ($courses as $course) {
             // Skip hidden or non-current courses.
-            if (!$course->visible || !self::is_course_current($course)) {
+            if (!$course->visible || !$this->is_course_current($course)) {
                 continue;
             }
 
             // Skip if user has no teacher role in the course.
-            if (!self::is_course_marker($course)) {
+            if (!$this->is_course_marker($course)) {
                 continue;
             }
 
@@ -245,8 +244,8 @@ class block_my_feedback extends block_base {
                 $cmid = $summative->cmid;
                 $mod = $modinfo->get_cm($cmid);
 
-                // Skip hidden mods.
-                if (!$mod->visible) {
+                // Skip hidden and unsupported mods.
+                if (!$mod->visible || !feedback_tracker_helper::is_supported_module($mod->modname)) {
                     continue;
                 }
 
@@ -261,27 +260,21 @@ class block_my_feedback extends block_base {
                 // If so should we only do it once we know we want to display it?
                 $assess->icon = course_summary_exporter::get_course_image($course);
 
-                // Turnitin.
-                if ($assess->modname === 'turnitintooltwo') {
-                    // Fetch parts.
-                    $turnitinparts = feedback_tracker_helper::get_turnitin_parts($mod->instance);
-                    foreach ($turnitinparts as $turnitinpart) {
-                        $turnitin = clone $assess;
-                        $turnitin->partid = $turnitinpart->id;
-                        // Check mod has duedate and require marking.
-                        if (self::add_mod_data($mod, $turnitin)) {
-                            $turnitin->name = $mod->name . ' ' . $turnitinpart->partname;
-                            $marking[] = $turnitin;
-                        }
+                $modulehelper = module_helper::create($mod);
+                foreach ($modulehelper->get_marking_targets() as $target) {
+                    $targetassess = clone $assess;
+                    $targetassess->partid = $target->partid;
+
+                    // Check mod target has duedate and requires marking.
+                    if (!$this->add_mod_data($modulehelper, $targetassess, $target->duedate)) {
+                        continue;
                     }
-                } else {
-                    // Check mod has duedate and require marking.
-                    if (
-                        feedback_tracker_helper::is_supported_module($mod->modname) &&
-                        self::add_mod_data($mod, $assess)
-                    ) {
-                        $marking[] = $assess;
+
+                    if (!empty($target->partname)) {
+                        $targetassess->name = $mod->name . ' ' . $target->partname;
                     }
+
+                    $marking[] = $targetassess;
                 }
             }
         }
@@ -298,39 +291,21 @@ class block_my_feedback extends block_base {
     }
 
     /**
-     * Return mod data - due date & require marking.
+     * Return mod target data - due date & require marking.
      *
-     * @param cm_info $mod
+     * @param module_helper $modulehelper
      * @param stdClass $assess
+     * @param int $duedate
      * @return bool
      */
-    public static function add_mod_data(cm_info $mod, stdClass $assess): bool {
-        global $DB;
-
-        // Get duedate.
-        if ($mod->modname === 'turnitintooltwo') {
-            $duedate = $DB->get_field('turnitintooltwo_parts', 'dtdue', ['id' => $assess->partid]);
-        } else {
-            $duedate = feedback_tracker::get_duedate($mod);
-        }
-
+    public function add_mod_data(module_helper $modulehelper, stdClass $assess, int $duedate): bool {
         // Check that mod has a due date, and the due date is in range.
-        if (($duedate === 0) || !self::duedate_in_range($duedate)) {
+        if (($duedate === 0) || !$this->duedate_in_range($duedate)) {
             return false;
         }
 
-        // Get the grade item ID.
-        $params = [
-            'itemtype' => 'mod',
-            'itemnumber' => 0,
-            'itemmodule' => $mod->modname,
-            'iteminstance' => $mod->instance,
-        ];
-        $gradeitemid = $DB->get_field('grade_items', 'id', $params);
-
         // Check that mod has missing markings.
-        $submitterids = array_column(feedback_tracker::get_module_submissions($mod), 'userid');
-        $assess->requiremarking = feedback_tracker::count_missing_grades($mod, $submitterids, $gradeitemid, true);
+        $assess->requiremarking = $modulehelper->count_missing_grades(markeronly: true);
         if ($assess->requiremarking === 0) {
             return false;
         }
@@ -339,7 +314,7 @@ class block_my_feedback extends block_base {
         $assess->unixtimestamp = $duedate;
         $assess->duedate = date('jS M', $duedate);
 
-        $assess->markingurl = feedback_tracker::get_markingurl($mod);
+        $assess->markingurl = $modulehelper->get_markingurl();
 
         // Return template data.
         return true;
@@ -349,8 +324,9 @@ class block_my_feedback extends block_base {
      * Return if course has started (startdate) and has not ended (enddate).
      *
      * @param stdClass $course
+     * @return bool
      */
-    public static function is_course_current(stdClass $course): bool {
+    public function is_course_current(stdClass $course): bool {
         // Check if the course has started.
         if ($course->startdate > time()) {
             return false;
@@ -370,11 +346,12 @@ class block_my_feedback extends block_base {
     }
 
     /**
-     * Return if a due date in the date range.
+     * Return if a due date is in the date range.
      *
      * @param int $duedate
+     * @return int|null
      */
-    public static function duedate_in_range(int $duedate): ?int {
+    public function duedate_in_range(int $duedate): ?int {
         $startdate = strtotime('-2 month');
         $cutoffdate = strtotime('+1 month');
 
@@ -386,11 +363,12 @@ class block_my_feedback extends block_base {
     }
 
     /**
-     *  Get my feedback call for a user.
+     * Get my feedback for a user.
      *
      * Return users 5 most recent feedbacks.
+     *
      * @param stdClass $user
-     * @return array feedback items.
+     * @return array|null feedback items.
      */
     public function fetch_feedback($user): ?array {
         global $DB;
@@ -407,8 +385,19 @@ class block_my_feedback extends block_base {
         $i = 0; // We only want to show up to 5 grades - so count the output.
 
         foreach ($submissions as $f) {
-            // Check if a quiz feedback should be shown.
-            if ($f->modname == 'quiz' && !$this->show_quiz_submission($f)) {
+            $modinfo = get_fast_modinfo($f->course);
+            $cms = $modinfo->get_instances_of($f->modname);
+            $cm = $cms[$f->instance] ?? null;
+
+            if (!$cm) {
+                continue;
+            }
+
+            $modulehelper = module_helper::create($cm);
+            $course = $DB->get_record('course', ['id' => $f->course], '*', MUST_EXIST);
+            $feedbackdata = $modulehelper->build_student_feedback_data($f, $course);
+
+            if (!$feedbackdata) {
                 continue;
             }
 
@@ -418,27 +407,14 @@ class block_my_feedback extends block_base {
             }
 
             $feedback = new stdClass();
-            $feedback->id = $f->gradeid;
             $feedback->releaseddate = date('jS M', $f->lastmodified);
             $feedback->name = $f->name;
             $feedback->url = new moodle_url('/mod/' . $f->modname . '/view.php', ['id' => $f->cmid]);
-
-            // Course.
-            $course = $DB->get_record('course', ['id' => $f->course]);
             $feedback->coursename = $course->fullname;
 
-            // UCL want to always hide grader for quiz and turnitintooltwo.
-            if ($f->modname == 'quiz' || $f->modname == 'turnitintooltwo') {
-                $f->hidegrader = true;
-            }
-
-            // Marker.
-            if ($f->hidegrader) {
-                // Hide grader, so use course image.
-                // Course image.
+            if ($feedbackdata->hidegrader) {
                 $feedback->icon = course_summary_exporter::get_course_image($course);
             } else {
-                // Marker details.
                 $grader = core_user::get_user($f->grader);
                 $userpicture = new user_picture($grader);
                 $userpicture->size = 100;
@@ -454,69 +430,38 @@ class block_my_feedback extends block_base {
     }
 
     /**
-     * Get all assign, quiz and turnitintooltwo submissions for a user that are no older than 3 month.
+     * Get all submissions from supported module types for a user that are no older than 3 months.
      *
      * @param stdClass $user
      * @return array
      * @throws coding_exception
      */
     public function get_submissions($user) {
-        global $DB;
-        // Limit to last 3 months.
         $since = strtotime('-3 month');
-        // Construct the IN clause.
-        // Get supported module types.
         $supported = $this->get_supported_types();
-        [$insql, $params] = $DB->get_in_or_equal($supported, SQL_PARAMS_NAMED);
-
-        // Add other params.
-        $params['userid'] = $user->id;
-        $params['since'] = $since;
-        $params['wfreleased'] = 'released'; // Has the grade been released?
-
-        // Make sure only submissions from active courses are returned.
         $courses = enrol_get_all_users_courses($user->id, true, ['enddate']);
-        $params['courseids'] = implode(',', array_keys($courses));
 
-        $unixtimestamp = time();
+        $submissions = [];
 
-        // Query the modified grades / feedbacks for assignments, quizzes and turnitin.
-        $sql = "SELECT
-                    gg.id AS gradeid,
-                    gi.courseid AS course,
-                    a.hidegrader AS hidegrader,
-                    gi.itemname AS name,
-                    gg.userid AS userid,
-                    gg.usermodified AS grader,
-                    gg.timemodified AS lastmodified,
-                    cm.id AS cmid,
-                    gi.itemmodule AS modname,
-                    cm.instance as instance
-                FROM
-                    {grade_grades} gg
-                        JOIN
-                    {grade_items} gi ON gg.itemid = gi.id
-                        JOIN
-                    {modules} m ON gi.itemmodule = m.name
-                        JOIN
-                    {course_modules} cm ON gi.courseid = cm.course AND m.id = cm.module AND gi.iteminstance = cm.instance
-                        JOIN
-                    {user} u ON gg.usermodified = u.id
-                        LEFT JOIN
-                    {assign} a ON gi.iteminstance = a.id AND gi.itemmodule = 'assign'
-                        LEFT JOIN
-                    {assign_user_flags} uf ON gg.userid = uf.userid AND a.id = uf.assignment AND a.markingworkflow = 1
-                WHERE
-                    (gg.finalgrade IS NOT NULL OR gg.feedback IS NOT NULL)
-                        AND gi.itemmodule $insql
-                        AND (COALESCE(a.markingworkflow, 0) = 0 OR (a.markingworkflow = 1 AND uf.workflowstate = :wfreleased))
-                        AND gi.hidden < $unixtimestamp
-                        AND gg.timemodified >= :since AND gg.timemodified <= $unixtimestamp
-                        AND gg.userid = :userid
-                        AND gi.courseid IN (:courseids)
-                ORDER BY gg.timemodified DESC";
+        foreach ($courses as $course) {
+            if (!$course->visible || !$this->is_course_current($course)) {
+                continue;
+            }
 
-        return $DB->get_records_sql($sql, $params);
+            $modinfo = get_fast_modinfo($course->id);
+            foreach ($modinfo->get_cms() as $cm) {
+                if (!$cm->uservisible || !in_array($cm->modname, $supported)) {
+                    continue;
+                }
+
+                $modulehelper = module_helper::create($cm);
+                $submissions = $submissions + $modulehelper->get_student_feedback_grade_records($user->id, $since);
+            }
+        }
+
+        usort($submissions, fn($a, $b) => $b->lastmodified <=> $a->lastmodified);
+
+        return $submissions;
     }
 
     /**
@@ -525,7 +470,6 @@ class block_my_feedback extends block_base {
      * @return array
      */
     public function get_supported_types(): array {
-
         $supported = [];
 
         $types = [
@@ -538,44 +482,14 @@ class block_my_feedback extends block_base {
             'workshop',
         ];
 
-        // Only include optional module types if they are installed.
-        $installed = \core_component::get_plugin_list('mod');
+        // Only include optional module types if they are supported by feedback tracker.
         foreach ($types as $modname) {
-            if (
-                array_key_exists($modname, $installed) &&
-                (PHPUNIT_TEST || feedback_tracker_helper::is_supported_module($modname))
-            ) {
+            if (PHPUNIT_TEST || feedback_tracker_helper::is_supported_module($modname)) {
                 $supported[] = $modname;
             }
         }
 
         return $supported;
-    }
-
-    /**
-     * Checking Review options for showing quiz submissions.
-     *
-     * @param stdClass $submission
-     * @return bool
-     */
-    public function show_quiz_submission(stdClass $submission): bool {
-        global $DB;
-
-        $quizobj = $DB->get_record('quiz', ['id' => $submission->instance]);
-
-        if ($quizobj->timeclose > 0 && $quizobj->timeclose < time()) { // The quiz is closed.
-            $reviewoptions = display_options::make_from_quiz($quizobj, display_options::AFTER_CLOSE);
-        } else {
-            $reviewoptions = display_options::make_from_quiz($quizobj, display_options::LATER_WHILE_OPEN);
-        }
-
-        // Only when these options are all set the submission should be shown.
-        // NB: when maxmarks and marks are both set $reviewoptions->marks == 2.
-        if ($reviewoptions->attempt + $reviewoptions->correctness + $reviewoptions->marks == 4) {
-            return true;
-        }
-
-        return false;
     }
 
     /**
