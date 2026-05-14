@@ -372,4 +372,44 @@ final class my_feedback_test extends advanced_testcase {
             $this->assertCount(1, $feedback, 'Returning only 1 visible recent submission for student 2.');
         }
     }
+
+    /**
+     * Assert that feedback falls back to the course image when the grader user cannot be loaded.
+     *
+     * @return void
+     * @covers ::fetch_feedback
+     */
+    public function test_fetch_feedback_with_missing_grader_uses_course_image(): void {
+        global $DB;
+
+        $assignsubmission = $DB->get_record_sql(
+            "SELECT gg.id, gi.itemname
+               FROM {grade_grades} gg
+               JOIN {grade_items} gi ON gi.id = gg.itemid
+              WHERE gg.userid = :userid
+                AND gi.itemmodule = :itemmodule
+                AND gi.itemname = :itemname",
+            [
+                'userid' => $this->student1->id,
+                'itemmodule' => 'assign',
+                'itemname' => 'Grade assign item 1',
+            ],
+            MUST_EXIST
+        );
+
+        $DB->set_field('grade_grades', 'usermodified', null, ['id' => $assignsubmission->id]);
+
+        $feedback = $this->block->fetch_feedback($this->student1);
+
+        $this->assertNotNull($feedback);
+
+        $assignfeedback = array_values(array_filter($feedback, fn($item) => $item->name === $assignsubmission->itemname));
+        $this->assertCount(1, $assignfeedback, 'The assignment feedback item should still be returned.');
+
+        $assignfeedback = reset($assignfeedback);
+        $expectedicon = \core_course\external\course_summary_exporter::get_course_image($this->course);
+
+        $this->assertSame($expectedicon, $assignfeedback->icon);
+        $this->assertObjectNotHasProperty('tutorname', $assignfeedback);
+    }
 }
