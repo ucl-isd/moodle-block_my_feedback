@@ -412,20 +412,16 @@ class block_my_feedback extends block_base {
             $feedback->url = new moodle_url('/mod/' . $f->modname . '/view.php', ['id' => $f->cmid]);
             $feedback->coursename = $course->fullname;
 
-            if ($feedbackdata->hidegrader) {
-                $feedback->icon = course_summary_exporter::get_course_image($course);
+            if (!$feedbackdata->hidegrader && ($grader = core_user::get_user($f->grader))) {
+                // If a grader can be found return tutor name and picture.
+                $userpicture = new user_picture($grader);
+                $userpicture->size = 100;
+                $icon = $userpicture->get_url($this->page)->out(false);
+                $feedback->tutorname = fullname($grader);
+                $feedback->icon = $icon;
             } else {
-                $grader = core_user::get_user($f->grader);
-                // If a grader can be found return tutor name and picture, otherwise return course image.
-                if ($grader && isset($grader->id)) {
-                    $userpicture = new user_picture($grader);
-                    $userpicture->size = 100;
-                    $icon = $userpicture->get_url($this->page)->out(false);
-                    $feedback->tutorname = fullname($grader);
-                    $feedback->icon = $icon;
-                } else {
-                    $feedback->icon = course_summary_exporter::get_course_image($course);
-                }
+                // Otherwise return course image.
+                $feedback->icon = course_summary_exporter::get_course_image($course);
             }
 
             $feedbacks[] = $feedback;
