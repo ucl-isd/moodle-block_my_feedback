@@ -1,4 +1,4 @@
-@block @block_my_feedback @javascript
+@block @block_my_feedback
 Feature: Student feedback hides coursework marker identity when assessor anonymity is enabled
   In order to protect anonymous marking in coursework
   As a student
@@ -44,10 +44,8 @@ Feature: Student feedback hides coursework marker identity when assessor anonymi
       | allocatable | coursework      | assessor | stageidentifier | grade | feedbackcomment | finalised |
       | student1    | Test coursework | teacher1 | assessor_1      | 58    | Blah            | 1         |
 
-    And I am logged in as "admin"
-    And I visit the coursework page
-    And I press the release marks button
-    And I log out
+    And I am on the "Test coursework" "coursework activity" page logged in as "admin"
+    And I follow "Release the marks"
 
     When I am logged in as "student1"
     And I follow "Dashboard"
