@@ -292,6 +292,7 @@ class block_my_feedback extends block_base {
                         'duedate' => (int) $target->duedate,
                         'partid' => $target->partid,
                         'modulehelper' => $modulehelper,
+                        'mod' => $mod,
                         'assess' => $targetassess,
                     ];
                 }
@@ -304,6 +305,7 @@ class block_my_feedback extends block_base {
                     $target->modulehelper,
                     $target->assess,
                     $feedbackduedates[$index],
+                    $target->mod,
                     $target->duedate
                 );
                 if ($showtarget) {
@@ -329,6 +331,7 @@ class block_my_feedback extends block_base {
      * @param module_helper $modulehelper
      * @param stdClass $assess
      * @param int $feedbackduedate
+     * @param cm_info $mod Course module being marked.
      * @param int $submissionduedate Preserve the existing submission-date visibility window.
      * @return bool
      */
@@ -336,6 +339,7 @@ class block_my_feedback extends block_base {
         module_helper $modulehelper,
         stdClass $assess,
         int $feedbackduedate,
+        cm_info $mod,
         int $submissionduedate = 0
     ): bool {
         // Keep the old submission-date window, and include items whose feedback deadline is in range.
@@ -347,7 +351,10 @@ class block_my_feedback extends block_base {
         }
 
         // Check that mod has missing markings.
-        $assess->requiremarking = $modulehelper->count_missing_grades(markeronly: true);
+        // Feedback Tracker's marker-only assignment count excludes submissions without a marker.
+        $assess->requiremarking = $mod->modname === 'assign'
+            ? $this->count_assign_submissions_to_mark($modulehelper, $mod)
+            : $modulehelper->count_missing_grades(markeronly: true);
         if ($assess->requiremarking === 0) {
             return false;
         }
@@ -360,6 +367,79 @@ class block_my_feedback extends block_base {
 
         // Return template data.
         return true;
+    }
+
+    /**
+     * Count ungraded assignment submissions allocated to this marker or to no marker.
+     *
+     * @param module_helper $modulehelper Assignment helper.
+     * @param cm_info $mod Assignment course module.
+     * @return int
+     */
+    private function count_assign_submissions_to_mark(module_helper $modulehelper, cm_info $mod): int {
+        global $DB, $USER;
+
+        $submissions = $modulehelper->get_module_submissions();
+        if (!$submissions) {
+            return 0;
+        }
+
+        require_once(__DIR__ . '/../../mod/assign/locallib.php');
+        $assignment = new assign($mod->context, $mod, $mod->course);
+
+        // Moodle 5.2 supports multiple allocated markers in a dedicated table.
+        $allocated = [];
+        if (method_exists($assignment, 'get_allocated_markers')) {
+            $markers = $DB->get_records_select(
+                'assign_allocated_marker',
+                'assignment = :assignment',
+                ['assignment' => $mod->instance],
+                '',
+                'id, student, marker'
+            );
+            foreach ($markers as $marker) {
+                $allocated[$marker->student][$marker->marker] = true;
+            }
+        } else {
+            $flags = $DB->get_records('assign_user_flags', ['assignment' => $mod->instance], '', 'id, userid, allocatedmarker');
+            foreach ($flags as $flag) {
+                if ($flag->allocatedmarker) {
+                    $allocated[$flag->userid][$flag->allocatedmarker] = true;
+                }
+            }
+        }
+
+        $team = (bool)($mod->customdata['teamsubmission'] ??
+            $DB->get_field('assign', 'teamsubmission', ['id' => $mod->instance]));
+        $membercache = [];
+        $count = 0;
+        foreach ($submissions as $submission) {
+            if (!empty($allocated[$submission->userid]) && !isset($allocated[$submission->userid][$USER->id])) {
+                continue;
+            }
+
+            if ($team && (int)$submission->groupid !== 0) {
+                $groupid = (int)$submission->groupid;
+                $membercache[$groupid] ??= array_keys(groups_get_members($groupid, 'u.id'));
+                $members = $membercache[$groupid];
+            } else {
+                $members = [(int)$submission->userid];
+            }
+
+            // Match Feedback Tracker's team-submission rule: one graded member grades the group.
+            if (!$members) {
+                continue;
+            }
+            foreach ($members as $memberid) {
+                $grade = $assignment->get_user_grade($memberid, false);
+                if ($grade && $grade->grader > 0) {
+                    continue 2;
+                }
+            }
+            $count++;
+        }
+
+        return $count;
     }
 
     /**
