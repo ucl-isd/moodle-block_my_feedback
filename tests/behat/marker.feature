@@ -88,6 +88,17 @@ Feature: As a marker I want to see only submissions to mark where I am the assig
     And I should see "Test assignment"
     And I should see "1 to mark"
 
+  Scenario: Unallocated submissions remain visible when other submissions have markers.
+    Given I allocate the following markers for assignment "Test assignment":
+      | Student   | Marker    |
+      | student1  | teacher1  |
+      | student2  | teacher2  |
+
+    And I am logged in as "teacher1"
+    And I am on site homepage
+    And I follow "Dashboard"
+    Then I should see "2 to mark"
+
   Scenario: A Teacher should not see upcoming markings for submission from students where others are assigned as marker.
     Given I allocate the following markers for assignment "Test assignment":
       | Student   | Marker    |
