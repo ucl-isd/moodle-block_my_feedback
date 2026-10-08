@@ -289,6 +289,290 @@ final class my_feedback_test extends advanced_testcase {
     }
 
     /**
+     * User-hidden grades are not returned as feedback until their hide time has passed.
+     *
+     * @return void
+     * @covers ::get_submissions
+     */
+    public function test_get_submissions_excludes_user_hidden_grades(): void {
+        global $DB;
+
+        $item = $DB->get_record('grade_items', [
+            'courseid' => $this->course->id,
+            'itemmodule' => 'assign',
+            'itemname' => 'Grade assign item 1',
+        ], '*', MUST_EXIST);
+        $grade = $DB->get_record('grade_grades', [
+            'itemid' => $item->id,
+            'userid' => $this->student1->id,
+        ], '*', MUST_EXIST);
+        $grade->hidden = time() + DAYSECS;
+        $DB->update_record('grade_grades', $grade);
+
+        $submissions = $this->block->get_submissions($this->student1);
+        $gradeids = array_column($submissions, 'gradeid');
+
+        $this->assertNotContains((int)$grade->id, array_map('intval', $gradeids));
+    }
+
+    /**
+     * Assignment marking counts use the requested marker and bulk-load grades as submission volume grows.
+     *
+     * @return void
+     * @covers ::add_mod_data
+     * @covers ::count_assign_submissions_to_mark
+     */
+    public function test_assignment_marking_uses_requested_marker_and_bulk_grade_lookup(): void {
+        global $DB;
+
+        $assignment = $this->getDataGenerator()->create_module('assign', [
+            'course' => $this->course->id,
+            'name' => 'Counting assignment',
+            'duedate' => time() + DAYSECS,
+            'assignsubmission_onlinetext_enabled' => 1,
+            'assignfeedback_comments_enabled' => 1,
+            'submissiondrafts' => 0,
+        ]);
+        $cmrecord = get_coursemodule_from_instance('assign', $assignment->id, $this->course->id);
+        $cm = get_fast_modinfo($this->course)->get_cm($cmrecord->id);
+        $submitters = [];
+        for ($i = 0; $i < 12; $i++) {
+            $submitter = $this->getDataGenerator()->create_user();
+            $this->getDataGenerator()->enrol_user($submitter->id, $this->course->id, 'student');
+            $this->getDataGenerator()->get_plugin_generator('mod_assign')->create_submission([
+                'cmid' => $cm->id,
+                'userid' => $submitter->id,
+                'status' => ASSIGN_SUBMISSION_STATUS_SUBMITTED,
+                'onlinetext' => 'Submitted work',
+            ]);
+            $submitters[] = $submitter;
+        }
+
+        // Assign one submission to the requested marker; leave the rest unallocated.
+        $DB->insert_record('assign_user_flags', (object)[
+            'assignment' => $assignment->id,
+            'userid' => $submitters[0]->id,
+            'allocatedmarker' => $this->teacher->id,
+        ]);
+
+        // The current session user differs from the marker passed to fetch_marking/add_mod_data.
+        $this->setUser($this->student2);
+        $submissions = $DB->get_records('assign_submission', [
+            'assignment' => $assignment->id,
+            'status' => ASSIGN_SUBMISSION_STATUS_SUBMITTED,
+            'latest' => 1,
+        ], '', 'id, userid, groupid');
+        $modulehelper = new class ($cm, $submissions) extends \report_feedback_tracker\local\module_helper {
+            /** @var array */
+            private array $submissions;
+
+            /**
+             * Create a helper returning the prepared submitted records.
+             *
+             * @param \cm_info $module
+             * @param array $submissions
+             */
+            public function __construct(\cm_info $module, array $submissions) {
+                parent::__construct($module);
+                $this->submissions = $submissions;
+            }
+
+            /**
+             * Return a dummy marking URL.
+             *
+             * @return ?\moodle_url
+             */
+            public function get_markingurl(): ?\moodle_url {
+                return new \moodle_url('/mod/assign/view.php', ['id' => $this->module->id]);
+            }
+
+            /**
+             * Return a due date within the visible window.
+             *
+             * @return int
+             */
+            public function get_duedate(): int {
+                return time() + DAYSECS;
+            }
+
+            /**
+             * Return prepared assignment submissions.
+             *
+             * @return array
+             */
+            public function get_module_submissions(): array {
+                return $this->submissions;
+            }
+
+            /**
+             * Replace the prepared records to compare query scaling.
+             *
+             * @param array $submissions
+             */
+            public function set_submissions(array $submissions): void {
+                $this->submissions = $submissions;
+            }
+
+            /**
+             * Return no separate submission date.
+             *
+             * @param int $userid
+             * @param ?int $part
+             * @return int
+             */
+            public function get_submissiondate(int $userid, ?int $part = null): int {
+                return 0;
+            }
+        };
+        $assess = new \stdClass();
+        $queriesbefore = $DB->perf_get_queries();
+        $modulehelper->set_submissions(array_slice(array_values($submissions), 0, 1));
+        $smallresult = $this->block->add_mod_data($modulehelper, $assess, time() + DAYSECS, $cm, $this->teacher->id);
+        $smallquerycount = $DB->perf_get_queries() - $queriesbefore;
+
+        $modulehelper->set_submissions(array_values($submissions));
+        $assess = new \stdClass();
+        $queriesbefore = $DB->perf_get_queries();
+        $largeresult = $this->block->add_mod_data($modulehelper, $assess, time() + DAYSECS, $cm, $this->teacher->id);
+        $largequerycount = $DB->perf_get_queries() - $queriesbefore;
+
+        $this->assertTrue($smallresult);
+        $this->assertTrue($largeresult);
+        $this->assertSame(12, $assess->requiremarking);
+        $this->assertLessThanOrEqual(
+            $smallquerycount + 1,
+            $largequerycount,
+            'Assignment grading query count should remain constant as submitters increase.'
+        );
+    }
+
+    /**
+     * Team allocations are checked against group members, and their grades are read in bulk.
+     *
+     * @return void
+     * @covers ::add_mod_data
+     * @covers ::count_assign_submissions_to_mark
+     */
+    public function test_team_assignment_counts_allocations_and_grades_for_all_members(): void {
+        global $DB;
+
+        $groupid = groups_create_group((object)[
+            'courseid' => $this->course->id,
+            'name' => 'Submission team',
+        ]);
+        groups_add_member($groupid, $this->student1->id);
+
+        $assignment = $this->getDataGenerator()->create_module('assign', [
+            'course' => $this->course->id,
+            'name' => 'Team assignment',
+            'duedate' => time() + DAYSECS,
+            'teamsubmission' => 1,
+            'assignsubmission_onlinetext_enabled' => 1,
+            'assignfeedback_comments_enabled' => 1,
+            'submissiondrafts' => 0,
+        ]);
+        $cmrecord = get_coursemodule_from_instance('assign', $assignment->id, $this->course->id);
+        $cm = get_fast_modinfo($this->course)->get_cm($cmrecord->id);
+        require_once($GLOBALS['CFG']->dirroot . '/mod/assign/locallib.php');
+        $assignmentapi = new \assign($cm->context, $cm, $cm->course);
+        $groupsubmission = $assignmentapi->get_group_submission($this->student1->id, $groupid, true);
+        $groupsubmission->status = ASSIGN_SUBMISSION_STATUS_SUBMITTED;
+        $groupsubmission->latest = 1;
+        $DB->update_record('assign_submission', $groupsubmission);
+
+        // The group member is assigned to another marker; a submission has userid=0 in core Moodle.
+        $DB->insert_record('assign_user_flags', (object)[
+            'assignment' => $assignment->id,
+            'userid' => $this->student1->id,
+            'allocatedmarker' => $this->student2->id,
+        ]);
+
+        $fakehelper = new class ($cm, $groupsubmission) extends \report_feedback_tracker\local\module_helper {
+            /** @var \stdClass */
+            private \stdClass $submission;
+
+            /**
+             * Create the fake helper with a group submission.
+             *
+             * @param \cm_info $module
+             * @param \stdClass $submission
+             */
+            public function __construct(\cm_info $module, \stdClass $submission) {
+                parent::__construct($module);
+                $this->submission = $submission;
+            }
+
+            /**
+             * Return a dummy marking URL.
+             *
+             * @return \moodle_url
+             */
+            public function get_markingurl(): ?\moodle_url {
+                return new \moodle_url('/mod/assign/view.php', ['id' => $this->module->id]);
+            }
+
+            /**
+             * Return a due date within the block's display window.
+             *
+             * @return int
+             */
+            public function get_duedate(): int {
+                return time() + DAYSECS;
+            }
+
+            /**
+             * Return the single test submission.
+             *
+             * @return array
+             */
+            public function get_module_submissions(): array {
+                return [$this->submission];
+            }
+
+            /**
+             * Return no separate submission date.
+             *
+             * @param int $userid
+             * @param ?int $part
+             * @return int
+             */
+            public function get_submissiondate(int $userid, ?int $part = null): int {
+                return 0;
+            }
+        };
+
+        $this->setUser($this->teacher);
+        $assess = new \stdClass();
+        $queriesbefore = $DB->perf_get_queries();
+        $smallresult = $this->block->add_mod_data($fakehelper, $assess, time() + DAYSECS, $cm, $this->teacher->id);
+        $smallquerycount = $DB->perf_get_queries() - $queriesbefore;
+        $this->assertFalse($smallresult);
+
+        // Adding members to the same group must not add one grade query per member.
+        for ($i = 0; $i < 11; $i++) {
+            $member = $this->getDataGenerator()->create_user();
+            $this->getDataGenerator()->enrol_user($member->id, $this->course->id, 'student');
+            groups_add_member($groupid, $member->id);
+            $DB->insert_record('assign_user_flags', (object)[
+                'assignment' => $assignment->id,
+                'userid' => $member->id,
+                'allocatedmarker' => $this->student2->id,
+            ]);
+        }
+        $assess = new \stdClass();
+        $queriesbefore = $DB->perf_get_queries();
+        $largeresult = $this->block->add_mod_data($fakehelper, $assess, time() + DAYSECS, $cm, $this->teacher->id);
+        $largequerycount = $DB->perf_get_queries() - $queriesbefore;
+
+        $this->assertFalse($largeresult);
+        $this->assertLessThanOrEqual(
+            $smallquerycount + 1,
+            $largequerycount,
+            'Adding group members should not add a grade lookup per member.'
+        );
+    }
+
+    /**
      * Test submissions are returned from multiple enrolled courses.
      *
      * @return void
