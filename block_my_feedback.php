@@ -265,7 +265,7 @@ class block_my_feedback extends block_base {
         $cmsbycourse = [];
         $modulehelpers = [];
         $gradeitemidsbycourse = [];
-        foreach ($markercourses as $courseid => $course) {
+        foreach (array_keys($markercourses) as $courseid) {
             // Course-module assess-type rows store gradeitemid 0, so resolve actual grade items.
             // Their IDs are needed for feedback-date override lookups on all modules.
             $gradeitemidsbycourse[$courseid] = [];
