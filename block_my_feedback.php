@@ -353,7 +353,8 @@ class block_my_feedback extends block_base {
                     $assess,
                     $candidate->feedbackduedate,
                     $candidate->submissionduedate,
-                    $mod
+                    $mod,
+                    (int)$user->id
             )) {
                 continue;
             }
@@ -379,21 +380,31 @@ class block_my_feedback extends block_base {
      * @param module_helper $modulehelper
      * @param stdClass $assess
      * @param int $feedbackduedate
-     * @param int $submissionduedate Preserve the existing submission-date visibility window.
-     * @param cm_info|null $mod Course module being marked, for assignment-specific counting.
+     * @param int|cm_info $submissionduedate Submission date, or course module for legacy callers.
+     * @param cm_info|int|null $mod Course module, or marker ID for legacy callers.
+     * @param int|null $markerid User whose marking is being counted.
      * @return bool
      */
     public function add_mod_data(
         module_helper $modulehelper,
         stdClass $assess,
         int $feedbackduedate,
-        int $submissionduedate = 0,
-        ?cm_info $mod = null
+        int|cm_info $submissionduedate = 0,
+        cm_info|int|null $mod = null,
+        ?int $markerid = null
     ): bool {
+        global $USER;
+
+        // Support the older (duedate, module, markerid) argument order during this branch migration.
+        if ($submissionduedate instanceof cm_info) {
+            $markerid ??= is_int($mod) ? $mod : null;
+            $mod = $submissionduedate;
+            $submissionduedate = $feedbackduedate;
+        }
         // Keep the old submission-date window, and include items whose feedback deadline is in range.
         if (
             $feedbackduedate === 0 ||
-            (!$this->duedate_in_range($submissionduedate) && !$this->duedate_in_range($feedbackduedate))
+            (!$this->duedate_in_range((int)$submissionduedate) && !$this->duedate_in_range($feedbackduedate))
         ) {
             return false;
         }
@@ -401,7 +412,7 @@ class block_my_feedback extends block_base {
         // Check that mod has missing markings.
         // Feedback Tracker's marker-only assignment count excludes submissions without a marker.
         $assess->requiremarking = $mod && $mod->modname === 'assign'
-            ? $this->count_assign_submissions_to_mark($modulehelper, $mod)
+            ? $this->count_assign_submissions_to_mark($modulehelper, $mod, $markerid ?? (int)$USER->id)
             : $modulehelper->count_missing_grades(markeronly: true);
         if ($assess->requiremarking === 0) {
             return false;
@@ -422,10 +433,11 @@ class block_my_feedback extends block_base {
      *
      * @param module_helper $modulehelper Assignment helper.
      * @param cm_info $mod Assignment course module.
+     * @param int $markerid User whose marking is being counted.
      * @return int
      */
-    private function count_assign_submissions_to_mark(module_helper $modulehelper, cm_info $mod): int {
-        global $DB, $USER;
+    private function count_assign_submissions_to_mark(module_helper $modulehelper, cm_info $mod, int $markerid): int {
+        global $DB;
 
         $submissions = $modulehelper->get_module_submissions();
         if (!$submissions) {
@@ -433,11 +445,10 @@ class block_my_feedback extends block_base {
         }
 
         require_once(__DIR__ . '/../../mod/assign/locallib.php');
-        $assignment = new assign($mod->context, $mod, $mod->course);
 
         // Moodle 5.2 supports multiple allocated markers in a dedicated table.
         $allocated = [];
-        if (method_exists($assignment, 'get_allocated_markers')) {
+        if (method_exists('assign', 'get_allocated_markers')) {
             $markers = $DB->get_records_select(
                 'assign_allocated_marker',
                 'assignment = :assignment',
@@ -460,29 +471,110 @@ class block_my_feedback extends block_base {
         $team = (bool)($mod->customdata['teamsubmission'] ??
             $DB->get_field('assign', 'teamsubmission', ['id' => $mod->instance]));
         $membercache = [];
-        $count = 0;
+        $candidates = [];
+        $memberids = [];
+        $groupids = [];
         foreach ($submissions as $submission) {
-            if (!empty($allocated[$submission->userid]) && !isset($allocated[$submission->userid][$USER->id])) {
-                continue;
-            }
-
             if ($team && (int)$submission->groupid !== 0) {
                 $groupid = (int)$submission->groupid;
                 $membercache[$groupid] ??= array_keys(groups_get_members($groupid, 'u.id'));
                 $members = $membercache[$groupid];
+                $groupids[$groupid] = $groupid;
             } else {
                 $members = [(int)$submission->userid];
             }
-
-            // Match Feedback Tracker's team-submission rule: one graded member grades the group.
             if (!$members) {
                 continue;
             }
             foreach ($members as $memberid) {
-                $grade = $assignment->get_user_grade($memberid, false);
-                if ($grade && $grade->grader > 0) {
-                    continue 2;
+                $memberids[(int)$memberid] = (int)$memberid;
+            }
+            $candidates[] = (object)[
+                'submission' => $submission,
+                'members' => array_map('intval', $members),
+                'groupid' => $team ? (int)$submission->groupid : 0,
+            ];
+        }
+        if (!$candidates) {
+            return 0;
+        }
+
+        // Load latest submitted attempts, including group-level submission records, in bulk.
+        $attempts = [];
+        [$useridssql, $userparams] = $DB->get_in_or_equal(array_values($memberids), SQL_PARAMS_NAMED, 'submitter');
+        $attemptparams = ['assignment' => $mod->instance, 'submitted' => ASSIGN_SUBMISSION_STATUS_SUBMITTED] + $userparams;
+        $latestusersubmissions = $DB->get_records_select(
+            'assign_submission',
+            "assignment = :assignment AND latest = 1 AND status = :submitted AND userid $useridssql",
+            $attemptparams,
+            '',
+            'id, userid, attemptnumber'
+        );
+        foreach ($latestusersubmissions as $latest) {
+            $attempts[(int)$latest->userid] = (int)$latest->attemptnumber;
+        }
+
+        $groupattempts = [];
+        if ($team && $groupids) {
+            [$groupsql, $groupparams] = $DB->get_in_or_equal(array_values($groupids), SQL_PARAMS_NAMED, 'group');
+            $latestgroupsubmissions = $DB->get_records_select(
+                'assign_submission',
+                "assignment = :assignment AND userid = 0 AND latest = 1 AND status = :submitted AND groupid $groupsql",
+                ['assignment' => $mod->instance, 'submitted' => ASSIGN_SUBMISSION_STATUS_SUBMITTED] + $groupparams,
+                '',
+                'id, groupid, attemptnumber'
+            );
+            foreach ($latestgroupsubmissions as $latest) {
+                $groupattempts[(int)$latest->groupid] = (int)$latest->attemptnumber;
+            }
+            foreach ($candidates as $candidate) {
+                if ($candidate->groupid && isset($groupattempts[$candidate->groupid])) {
+                    foreach ($candidate->members as $memberid) {
+                        $attempts[$memberid] = $groupattempts[$candidate->groupid];
+                    }
                 }
+            }
+        }
+
+        // Bulk-load grade records instead of doing multiple get_user_grade() queries per member.
+        [$gradedusersql, $gradeduserparams] = $DB->get_in_or_equal(array_values($memberids), SQL_PARAMS_NAMED, 'gradeduser');
+        $graderows = $DB->get_records_select(
+            'assign_grades',
+            "assignment = :assignment AND userid $gradedusersql AND grader > 0",
+            ['assignment' => $mod->instance] + $gradeduserparams,
+            '',
+            'id, userid, attemptnumber'
+        );
+        $graded = [];
+        foreach ($graderows as $grade) {
+            $userid = (int)$grade->userid;
+            if (isset($attempts[$userid]) && $attempts[$userid] === (int)$grade->attemptnumber) {
+                $graded[$userid] = true;
+            }
+        }
+
+        $count = 0;
+        foreach ($candidates as $candidate) {
+            // One graded member marks a team submission as graded, matching Feedback Tracker.
+            if (array_intersect_key($graded, array_fill_keys($candidate->members, true))) {
+                continue;
+            }
+
+            // Resolve allocations across all team members before deciding marker visibility.
+            $hasallocation = false;
+            $allocatedtome = false;
+            foreach ($candidate->members as $memberid) {
+                if (empty($allocated[$memberid])) {
+                    continue;
+                }
+                $hasallocation = true;
+                if (isset($allocated[$memberid][$markerid])) {
+                    $allocatedtome = true;
+                    break;
+                }
+            }
+            if ($hasallocation && !$allocatedtome) {
+                continue;
             }
             $count++;
         }
@@ -638,6 +730,7 @@ class block_my_feedback extends block_base {
                 'since' => $since,
                 'now1' => $now,
                 'now2' => $now,
+                'now3' => $now,
             ];
             // Match module_helper::get_student_feedback_grade_records() in one query for all candidate modules.
             $sql = "SELECT gg.id AS gradeid,
@@ -653,6 +746,8 @@ class block_my_feedback extends block_base {
                      WHERE gg.userid = :userid
                        AND (gg.finalgrade IS NOT NULL OR gg.feedback IS NOT NULL)
                        AND gg.timemodified BETWEEN :since AND :now1
+                       AND gg.hidden < :now3
+                       AND gg.hidden <> 1
                        AND gi.courseid $coursesql
                        AND gi.itemmodule $modulesql
                        AND gi.hidden < :now2
