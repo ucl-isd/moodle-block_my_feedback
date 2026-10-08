@@ -313,7 +313,7 @@ class block_my_feedback extends block_base {
             $assess->name = $mod->name;
             $assess->coursename = $course->fullname;
             $assess->partid = $target->partid;
-            if (!$this->add_mod_data($candidate->modulehelper, $assess, $target->duedate, $mod, (int)$user->id)) {
+            if (!$this->add_mod_data($candidate->modulehelper, $assess, $target->duedate)) {
                 continue;
             }
 
@@ -338,27 +338,16 @@ class block_my_feedback extends block_base {
      * @param module_helper $modulehelper
      * @param stdClass $assess
      * @param int $duedate
-     * @param cm_info $mod Course module being marked.
-     * @param int $markerid User whose marking is being counted.
      * @return bool
      */
-    public function add_mod_data(
-        module_helper $modulehelper,
-        stdClass $assess,
-        int $duedate,
-        cm_info $mod,
-        int $markerid
-    ): bool {
+    public function add_mod_data(module_helper $modulehelper, stdClass $assess, int $duedate): bool {
         // Check that mod has a due date, and the due date is in range.
         if (($duedate === 0) || !$this->duedate_in_range($duedate)) {
             return false;
         }
 
         // Check that mod has missing markings.
-        // Feedback Tracker's marker-only assignment count excludes submissions without a marker.
-        $assess->requiremarking = $mod->modname === 'assign'
-            ? $this->count_assign_submissions_to_mark($modulehelper, $mod, $markerid)
-            : $modulehelper->count_missing_grades(markeronly: true);
+        $assess->requiremarking = $modulehelper->count_missing_grades(markeronly: true);
         if ($assess->requiremarking === 0) {
             return false;
         }
@@ -371,225 +360,6 @@ class block_my_feedback extends block_base {
 
         // Return template data.
         return true;
-    }
-
-    /**
-     * Count ungraded assignment submissions allocated to this marker or to no marker.
-     *
-     * @param module_helper $modulehelper Assignment helper.
-     * @param cm_info $mod Assignment course module.
-     * @param int $markerid User whose marking is being counted.
-     * @return int
-     */
-    private function count_assign_submissions_to_mark(module_helper $modulehelper, cm_info $mod, int $markerid): int {
-        global $DB;
-
-        $submissions = $modulehelper->get_module_submissions();
-        if (!$submissions) {
-            return 0;
-        }
-
-        require_once(__DIR__ . '/../../mod/assign/locallib.php');
-
-        // Moodle 5.2 supports multiple allocated markers in a dedicated table.
-        $allocated = [];
-        if (method_exists('assign', 'get_allocated_markers')) {
-            $markers = $DB->get_records_select(
-                'assign_allocated_marker',
-                'assignment = :assignment',
-                ['assignment' => $mod->instance],
-                '',
-                'id, student, marker'
-            );
-            foreach ($markers as $marker) {
-                $allocated[$marker->student][$marker->marker] = true;
-            }
-        } else {
-            $flags = $DB->get_records('assign_user_flags', ['assignment' => $mod->instance], '', 'id, userid, allocatedmarker');
-            foreach ($flags as $flag) {
-                if ($flag->allocatedmarker) {
-                    $allocated[$flag->userid][$flag->allocatedmarker] = true;
-                }
-            }
-        }
-
-        $team = (bool)($mod->customdata['teamsubmission'] ??
-            $DB->get_field('assign', 'teamsubmission', ['id' => $mod->instance]));
-        $candidates = [];
-        $memberids = [];
-        $groupids = [];
-        foreach ($submissions as $submission) {
-            if ($team && (int)$submission->groupid !== 0) {
-                $groupid = (int)$submission->groupid;
-                $groupids[$groupid] = $groupid;
-                $members = null;
-            } else {
-                $groupid = 0;
-                $members = [(int)$submission->userid];
-            }
-            $candidates[] = (object)[
-                'submission' => $submission,
-                'members' => $members,
-                'groupid' => $groupid,
-            ];
-        }
-        if (!$candidates) {
-            return 0;
-        }
-
-        // Load memberships for all submitted teams at once instead of querying once per group.
-        $membercache = [];
-        if ($groupids) {
-            [$groupsql, $groupparams] = $DB->get_in_or_equal(
-                array_values($groupids),
-                SQL_PARAMS_NAMED,
-                'membergroup'
-            );
-            $sql = "SELECT gm.id, gm.groupid, gm.userid
-                      FROM {groups_members} gm
-                      JOIN {user} u ON u.id = gm.userid";
-            $params = $groupparams;
-            $visibilitywhere = '';
-            $courseid = (int)$mod->course;
-            $canviewallgroups = has_capability(
-                'moodle/course:viewhiddengroups',
-                \context_course::instance($courseid),
-                $markerid
-            ) || !\core_group\visibility::course_has_hidden_groups($courseid);
-            if (!$canviewallgroups) {
-                $sql .= " JOIN {groups} g ON g.id = gm.groupid";
-                // Match core_group\visibility rules, evaluated for the requested marker rather than $USER.
-                $visibilitywhere = "(
-                    g.visibility = :membervisibility_all
-                    OR (
-                        g.visibility = :membervisibility_members
-                        AND EXISTS (
-                            SELECT gm2.id
-                              FROM {groups_members} gm2
-                             WHERE gm2.groupid = gm.groupid
-                                   AND gm2.userid = :membervisibility_marker
-                        )
-                    )
-                    OR (
-                        g.visibility = :membervisibility_own
-                        AND u.id = :membervisibility_owner
-                    )
-                )";
-                $params += [
-                    'membervisibility_all' => GROUPS_VISIBILITY_ALL,
-                    'membervisibility_members' => GROUPS_VISIBILITY_MEMBERS,
-                    'membervisibility_own' => GROUPS_VISIBILITY_OWN,
-                    'membervisibility_marker' => $markerid,
-                    'membervisibility_owner' => $markerid,
-                ];
-            }
-            $sql .= " WHERE gm.groupid $groupsql";
-            if ($visibilitywhere !== '') {
-                $sql .= " AND $visibilitywhere";
-            }
-            $sql .= ' ORDER BY gm.groupid, u.lastname ASC';
-            foreach ($DB->get_records_sql($sql, $params) as $member) {
-                $membercache[(int)$member->groupid][] = (int)$member->userid;
-            }
-        }
-
-        foreach ($candidates as $candidate) {
-            if ($candidate->groupid) {
-                $candidate->members = $membercache[$candidate->groupid] ?? [];
-            }
-            if (!$candidate->members) {
-                continue;
-            }
-            foreach ($candidate->members as $memberid) {
-                $memberids[(int)$memberid] = (int)$memberid;
-            }
-        }
-        $candidates = array_filter($candidates, static fn($candidate) => !empty($candidate->members));
-        if (!$candidates) {
-            return 0;
-        }
-
-        // Load latest submitted attempts, including group-level submission records, in bulk.
-        $attempts = [];
-        [$useridssql, $userparams] = $DB->get_in_or_equal(array_values($memberids), SQL_PARAMS_NAMED, 'submitter');
-        $attemptparams = ['assignment' => $mod->instance, 'submitted' => ASSIGN_SUBMISSION_STATUS_SUBMITTED] + $userparams;
-        $latestusersubmissions = $DB->get_records_select(
-            'assign_submission',
-            "assignment = :assignment AND latest = 1 AND status = :submitted AND userid $useridssql",
-            $attemptparams,
-            '',
-            'id, userid, attemptnumber'
-        );
-        foreach ($latestusersubmissions as $latest) {
-            $attempts[(int)$latest->userid] = (int)$latest->attemptnumber;
-        }
-
-        $groupattempts = [];
-        if ($team && $groupids) {
-            [$groupsql, $groupparams] = $DB->get_in_or_equal(array_values($groupids), SQL_PARAMS_NAMED, 'group');
-            $latestgroupsubmissions = $DB->get_records_select(
-                'assign_submission',
-                "assignment = :assignment AND userid = 0 AND latest = 1 AND status = :submitted AND groupid $groupsql",
-                ['assignment' => $mod->instance, 'submitted' => ASSIGN_SUBMISSION_STATUS_SUBMITTED] + $groupparams,
-                '',
-                'id, groupid, attemptnumber'
-            );
-            foreach ($latestgroupsubmissions as $latest) {
-                $groupattempts[(int)$latest->groupid] = (int)$latest->attemptnumber;
-            }
-            foreach ($candidates as $candidate) {
-                if ($candidate->groupid && isset($groupattempts[$candidate->groupid])) {
-                    foreach ($candidate->members as $memberid) {
-                        $attempts[$memberid] = $groupattempts[$candidate->groupid];
-                    }
-                }
-            }
-        }
-
-        // Bulk-load grade records instead of doing multiple get_user_grade() queries per member.
-        [$gradedusersql, $gradeduserparams] = $DB->get_in_or_equal(array_values($memberids), SQL_PARAMS_NAMED, 'gradeduser');
-        $graderows = $DB->get_records_select(
-            'assign_grades',
-            "assignment = :assignment AND userid $gradedusersql AND grade >= 0",
-            ['assignment' => $mod->instance] + $gradeduserparams,
-            '',
-            'id, userid, attemptnumber'
-        );
-        $graded = [];
-        foreach ($graderows as $grade) {
-            $userid = (int)$grade->userid;
-            if (isset($attempts[$userid]) && $attempts[$userid] === (int)$grade->attemptnumber) {
-                $graded[$userid] = true;
-            }
-        }
-
-        $count = 0;
-        foreach ($candidates as $candidate) {
-            // One graded member marks a team submission as graded, matching Feedback Tracker.
-            if (array_intersect_key($graded, array_fill_keys($candidate->members, true))) {
-                continue;
-            }
-
-            // Resolve allocations across all team members before deciding marker visibility.
-            $hasallocation = false;
-            $allocatedtome = false;
-            foreach ($candidate->members as $memberid) {
-                if (empty($allocated[$memberid])) {
-                    continue;
-                }
-                $hasallocation = true;
-                if (isset($allocated[$memberid][$markerid])) {
-                    $allocatedtome = true;
-                    break;
-                }
-            }
-            if ($hasallocation && !$allocatedtome) {
-                continue;
-            }
-            $count++;
-        }
-
-        return $count;
     }
 
     /**
