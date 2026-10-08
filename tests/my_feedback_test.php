@@ -261,6 +261,36 @@ final class my_feedback_test extends advanced_testcase {
     }
 
     /**
+     * Allocate an assignment submission using the schema for the current Moodle version.
+     *
+     * Moodle 5.2 moved allocations from assign_user_flags to assign_allocated_marker.
+     *
+     * @param int $assignmentid Assignment ID.
+     * @param int $studentid Student ID.
+     * @param int $markerid Marker ID.
+     * @return void
+     */
+    private function allocate_assignment_marker(int $assignmentid, int $studentid, int $markerid): void {
+        global $CFG, $DB;
+
+        require_once($CFG->dirroot . '/mod/assign/locallib.php');
+        if (method_exists('assign', 'get_allocated_markers')) {
+            $DB->insert_record('assign_allocated_marker', (object)[
+                'assignment' => $assignmentid,
+                'student' => $studentid,
+                'marker' => $markerid,
+            ]);
+            return;
+        }
+
+        $DB->insert_record('assign_user_flags', (object)[
+            'assignment' => $assignmentid,
+            'userid' => $studentid,
+            'allocatedmarker' => $markerid,
+        ]);
+    }
+
+    /**
      * Test the behaviour of get_submissions() method.
      *
      * @return void
@@ -349,11 +379,7 @@ final class my_feedback_test extends advanced_testcase {
         }
 
         // Assign one submission to the requested marker; leave the rest unallocated.
-        $DB->insert_record('assign_user_flags', (object)[
-            'assignment' => $assignment->id,
-            'userid' => $submitters[0]->id,
-            'allocatedmarker' => $this->teacher->id,
-        ]);
+        $this->allocate_assignment_marker($assignment->id, $submitters[0]->id, $this->teacher->id);
 
         // The current session user differs from the marker passed to fetch_marking/add_mod_data.
         $this->setUser($this->student2);
@@ -481,11 +507,7 @@ final class my_feedback_test extends advanced_testcase {
         $DB->update_record('assign_submission', $groupsubmission);
 
         // The group member is assigned to another marker; a submission has userid=0 in core Moodle.
-        $DB->insert_record('assign_user_flags', (object)[
-            'assignment' => $assignment->id,
-            'userid' => $this->student1->id,
-            'allocatedmarker' => $this->student2->id,
-        ]);
+        $this->allocate_assignment_marker($assignment->id, $this->student1->id, $this->student2->id);
 
         $fakehelper = new class ($cm, $groupsubmission) extends \report_feedback_tracker\local\module_helper {
             /** @var \stdClass */
@@ -553,11 +575,7 @@ final class my_feedback_test extends advanced_testcase {
             $member = $this->getDataGenerator()->create_user();
             $this->getDataGenerator()->enrol_user($member->id, $this->course->id, 'student');
             groups_add_member($groupid, $member->id);
-            $DB->insert_record('assign_user_flags', (object)[
-                'assignment' => $assignment->id,
-                'userid' => $member->id,
-                'allocatedmarker' => $this->student2->id,
-            ]);
+            $this->allocate_assignment_marker($assignment->id, $member->id, $this->student2->id);
         }
         $assess = new \stdClass();
         $queriesbefore = $DB->perf_get_queries();
