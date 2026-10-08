@@ -415,31 +415,73 @@ class block_my_feedback extends block_base {
 
         $team = (bool)($mod->customdata['teamsubmission'] ??
             $DB->get_field('assign', 'teamsubmission', ['id' => $mod->instance]));
-        $membercache = [];
         $candidates = [];
         $memberids = [];
         $groupids = [];
         foreach ($submissions as $submission) {
             if ($team && (int)$submission->groupid !== 0) {
                 $groupid = (int)$submission->groupid;
-                $membercache[$groupid] ??= array_keys(groups_get_members($groupid, 'u.id'));
-                $members = $membercache[$groupid];
                 $groupids[$groupid] = $groupid;
+                $members = null;
             } else {
+                $groupid = 0;
                 $members = [(int)$submission->userid];
-            }
-            if (!$members) {
-                continue;
-            }
-            foreach ($members as $memberid) {
-                $memberids[(int)$memberid] = (int)$memberid;
             }
             $candidates[] = (object)[
                 'submission' => $submission,
-                'members' => array_map('intval', $members),
-                'groupid' => $team ? (int)$submission->groupid : 0,
+                'members' => $members,
+                'groupid' => $groupid,
             ];
         }
+        if (!$candidates) {
+            return 0;
+        }
+
+        // Load memberships for all submitted teams at once instead of querying once per group.
+        $membercache = [];
+        if ($groupids) {
+            [$groupsql, $groupparams] = $DB->get_in_or_equal(
+                array_values($groupids),
+                SQL_PARAMS_NAMED,
+                'membergroup'
+            );
+            $sql = "SELECT gm.id, gm.groupid, gm.userid
+                      FROM {groups_members} gm
+                      JOIN {user} u ON u.id = gm.userid";
+            $params = $groupparams;
+            $visibilitywhere = '';
+            if (!\core_group\visibility::can_view_all_groups((int)$mod->course)) {
+                $sql .= " JOIN {groups} g ON g.id = gm.groupid";
+                [$visibilitywhere, $visibilityparams] = \core_group\visibility::sql_member_visibility_where(
+                    'g',
+                    'gm',
+                    'u',
+                    'membervisibility_'
+                );
+                $params += $visibilityparams;
+            }
+            $sql .= " WHERE gm.groupid $groupsql";
+            if ($visibilitywhere !== '') {
+                $sql .= " AND $visibilitywhere";
+            }
+            $sql .= ' ORDER BY gm.groupid, u.lastname ASC';
+            foreach ($DB->get_records_sql($sql, $params) as $member) {
+                $membercache[(int)$member->groupid][] = (int)$member->userid;
+            }
+        }
+
+        foreach ($candidates as $candidate) {
+            if ($candidate->groupid) {
+                $candidate->members = $membercache[$candidate->groupid] ?? [];
+            }
+            if (!$candidate->members) {
+                continue;
+            }
+            foreach ($candidate->members as $memberid) {
+                $memberids[(int)$memberid] = (int)$memberid;
+            }
+        }
+        $candidates = array_filter($candidates, static fn($candidate) => !empty($candidate->members));
         if (!$candidates) {
             return 0;
         }
@@ -485,7 +527,7 @@ class block_my_feedback extends block_base {
         [$gradedusersql, $gradeduserparams] = $DB->get_in_or_equal(array_values($memberids), SQL_PARAMS_NAMED, 'gradeduser');
         $graderows = $DB->get_records_select(
             'assign_grades',
-            "assignment = :assignment AND userid $gradedusersql AND grader > 0",
+            "assignment = :assignment AND userid $gradedusersql AND grade >= 0",
             ['assignment' => $mod->instance] + $gradeduserparams,
             '',
             'id, userid, attemptnumber'
