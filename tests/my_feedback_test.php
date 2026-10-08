@@ -492,8 +492,10 @@ final class my_feedback_test extends advanced_testcase {
         $groupid = groups_create_group((object)[
             'courseid' => $this->course->id,
             'name' => 'Submission team',
+            'visibility' => GROUPS_VISIBILITY_MEMBERS,
         ]);
         groups_add_member($groupid, $this->student1->id);
+        groups_add_member($groupid, $this->teacher->id);
 
         $assignment = $this->getDataGenerator()->create_module('assign', [
             'course' => $this->course->id,
@@ -513,8 +515,14 @@ final class my_feedback_test extends advanced_testcase {
         $groupsubmission->latest = 1;
         $DB->update_record('assign_submission', $groupsubmission);
 
-        // The group member is assigned to another marker; a submission has userid=0 in core Moodle.
-        $this->allocate_assignment_marker($assignment->id, $this->student1->id, $this->student2->id);
+        // The group member is assigned to this marker; a submission has userid=0 in core Moodle.
+        $this->allocate_assignment_marker($assignment->id, $this->student1->id, $this->teacher->id);
+        for ($i = 0; $i < 11; $i++) {
+            $member = $this->getDataGenerator()->create_user();
+            $this->getDataGenerator()->enrol_user($member->id, $this->course->id, 'student');
+            groups_add_member($groupid, $member->id);
+            $this->allocate_assignment_marker($assignment->id, $member->id, $this->student2->id);
+        }
 
         $fakehelper = new class ($cm, [$groupsubmission]) extends \report_feedback_tracker\local\module_helper {
             /** @var array */
@@ -580,12 +588,14 @@ final class my_feedback_test extends advanced_testcase {
             }
         };
 
-        $this->setUser($this->teacher);
+        // The session user cannot see this group, but the requested marker is one of its members.
+        $this->setUser($this->student2);
         $assess = new \stdClass();
         $queriesbefore = $DB->perf_get_queries();
         $smallresult = $this->block->add_mod_data($fakehelper, $assess, time() + DAYSECS, $cm, $this->teacher->id);
         $smallquerycount = $DB->perf_get_queries() - $queriesbefore;
-        $this->assertFalse($smallresult);
+        $this->assertTrue($smallresult);
+        $this->assertSame(1, $assess->requiremarking);
 
         // Adding more teams must not add one group-membership or grade query per team.
         $groupsubmissions = [$groupsubmission];
@@ -610,7 +620,8 @@ final class my_feedback_test extends advanced_testcase {
         $largeresult = $this->block->add_mod_data($fakehelper, $assess, time() + DAYSECS, $cm, $this->teacher->id);
         $largequerycount = $DB->perf_get_queries() - $queriesbefore;
 
-        $this->assertFalse($largeresult);
+        $this->assertTrue($largeresult);
+        $this->assertSame(1, $assess->requiremarking);
         $this->assertLessThanOrEqual(
             $smallquerycount + 1,
             $largequerycount,

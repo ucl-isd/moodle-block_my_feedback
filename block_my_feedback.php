@@ -450,15 +450,38 @@ class block_my_feedback extends block_base {
                       JOIN {user} u ON u.id = gm.userid";
             $params = $groupparams;
             $visibilitywhere = '';
-            if (!\core_group\visibility::can_view_all_groups((int)$mod->course)) {
+            $courseid = (int)$mod->course;
+            $canviewallgroups = has_capability(
+                'moodle/course:viewhiddengroups',
+                \context_course::instance($courseid),
+                $markerid
+            ) || !\core_group\visibility::course_has_hidden_groups($courseid);
+            if (!$canviewallgroups) {
                 $sql .= " JOIN {groups} g ON g.id = gm.groupid";
-                [$visibilitywhere, $visibilityparams] = \core_group\visibility::sql_member_visibility_where(
-                    'g',
-                    'gm',
-                    'u',
-                    'membervisibility_'
-                );
-                $params += $visibilityparams;
+                // Match core_group\visibility rules, evaluated for the requested marker rather than $USER.
+                $visibilitywhere = "(
+                    g.visibility = :membervisibility_all
+                    OR (
+                        g.visibility = :membervisibility_members
+                        AND EXISTS (
+                            SELECT gm2.id
+                              FROM {groups_members} gm2
+                             WHERE gm2.groupid = gm.groupid
+                                   AND gm2.userid = :membervisibility_marker
+                        )
+                    )
+                    OR (
+                        g.visibility = :membervisibility_own
+                        AND u.id = :membervisibility_owner
+                    )
+                )";
+                $params += [
+                    'membervisibility_all' => GROUPS_VISIBILITY_ALL,
+                    'membervisibility_members' => GROUPS_VISIBILITY_MEMBERS,
+                    'membervisibility_own' => GROUPS_VISIBILITY_OWN,
+                    'membervisibility_marker' => $markerid,
+                    'membervisibility_owner' => $markerid,
+                ];
             }
             $sql .= " WHERE gm.groupid $groupsql";
             if ($visibilitywhere !== '') {
