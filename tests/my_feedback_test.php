@@ -381,6 +381,13 @@ final class my_feedback_test extends advanced_testcase {
         // Assign one submission to the requested marker; leave the rest unallocated.
         $this->allocate_assignment_marker($assignment->id, $submitters[0]->id, $this->teacher->id);
 
+        // Saving an ungraded attempt can still set grader; it must remain in the pending count.
+        require_once($GLOBALS['CFG']->dirroot . '/mod/assign/locallib.php');
+        $assignmentapi = new \assign($cm->context, $cm, $cm->course);
+        $attemptedungraded = $assignmentapi->get_user_grade($submitters[0]->id, true);
+        $attemptedungraded->grader = $this->teacher->id;
+        $DB->update_record('assign_grades', $attemptedungraded);
+
         // The current session user differs from the marker passed to fetch_marking/add_mod_data.
         $this->setUser($this->student2);
         $submissions = $DB->get_records('assign_submission', [
@@ -509,19 +516,19 @@ final class my_feedback_test extends advanced_testcase {
         // The group member is assigned to another marker; a submission has userid=0 in core Moodle.
         $this->allocate_assignment_marker($assignment->id, $this->student1->id, $this->student2->id);
 
-        $fakehelper = new class ($cm, $groupsubmission) extends \report_feedback_tracker\local\module_helper {
-            /** @var \stdClass */
-            private \stdClass $submission;
+        $fakehelper = new class ($cm, [$groupsubmission]) extends \report_feedback_tracker\local\module_helper {
+            /** @var array */
+            private array $submissions;
 
             /**
              * Create the fake helper with a group submission.
              *
              * @param \cm_info $module
-             * @param \stdClass $submission
+             * @param array $submissions
              */
-            public function __construct(\cm_info $module, \stdClass $submission) {
+            public function __construct(\cm_info $module, array $submissions) {
                 parent::__construct($module);
-                $this->submission = $submission;
+                $this->submissions = $submissions;
             }
 
             /**
@@ -543,12 +550,22 @@ final class my_feedback_test extends advanced_testcase {
             }
 
             /**
-             * Return the single test submission.
+             * Return prepared group submissions.
              *
              * @return array
              */
             public function get_module_submissions(): array {
-                return [$this->submission];
+                return $this->submissions;
+            }
+
+            /**
+             * Replace the prepared group submissions.
+             *
+             * @param array $submissions
+             * @return void
+             */
+            public function set_submissions(array $submissions): void {
+                $this->submissions = $submissions;
             }
 
             /**
@@ -570,13 +587,24 @@ final class my_feedback_test extends advanced_testcase {
         $smallquerycount = $DB->perf_get_queries() - $queriesbefore;
         $this->assertFalse($smallresult);
 
-        // Adding members to the same group must not add one grade query per member.
+        // Adding more teams must not add one group-membership or grade query per team.
+        $groupsubmissions = [$groupsubmission];
         for ($i = 0; $i < 11; $i++) {
+            $extragroupid = groups_create_group((object)[
+                'courseid' => $this->course->id,
+                'name' => 'Additional team ' . $i,
+            ]);
             $member = $this->getDataGenerator()->create_user();
             $this->getDataGenerator()->enrol_user($member->id, $this->course->id, 'student');
-            groups_add_member($groupid, $member->id);
+            groups_add_member($extragroupid, $member->id);
             $this->allocate_assignment_marker($assignment->id, $member->id, $this->student2->id);
+            $extragroupsubmission = $assignmentapi->get_group_submission($member->id, $extragroupid, true);
+            $extragroupsubmission->status = ASSIGN_SUBMISSION_STATUS_SUBMITTED;
+            $extragroupsubmission->latest = 1;
+            $DB->update_record('assign_submission', $extragroupsubmission);
+            $groupsubmissions[] = $extragroupsubmission;
         }
+        $fakehelper->set_submissions($groupsubmissions);
         $assess = new \stdClass();
         $queriesbefore = $DB->perf_get_queries();
         $largeresult = $this->block->add_mod_data($fakehelper, $assess, time() + DAYSECS, $cm, $this->teacher->id);
