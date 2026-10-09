@@ -50,6 +50,12 @@ Feature: As a marker I want to see only submissions to mark where I am the assig
       | blockname      | contextlevel | reference | pagetypepattern | defaultregion | defaultweight |
       | my_feedback    | system       |           | my-index        | content       | 0             |
 
+  Scenario: A teacher should not see upcoming markings without an assigned marker.
+    Given I am logged in as "teacher1"
+    And I am on site homepage
+    And I follow "Dashboard"
+    Then I should not see "Marking for Teacher"
+
   Scenario: teacher1 should see 2 allocated submissions.
     Given I allocate the following markers for assignment "Test assignment":
       | Student   | Marker    |
