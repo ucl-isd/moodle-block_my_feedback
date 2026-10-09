@@ -526,12 +526,10 @@ class block_my_feedback extends block_base {
                      WHERE gg.userid = :userid
                        AND (gg.finalgrade IS NOT NULL OR gg.feedback IS NOT NULL)
                        AND gg.timemodified BETWEEN :since AND :now1
-                       AND gg.hidden < :now3
-                       AND gg.hidden <> 1
+                       AND (gg.hidden = 0 OR (gg.hidden > 1 AND gg.hidden <= :now3))
                        AND gi.courseid $coursesql
                        AND gi.itemmodule $modulesql
-                       AND gi.hidden < :now2
-                       AND gi.hidden <> 1
+                       AND (gi.hidden = 0 OR (gi.hidden > 1 AND gi.hidden <= :now2))
                   ORDER BY gg.timemodified DESC";
             foreach ($DB->get_records_sql($sql, $params) as $record) {
                 $courseid = (int)$record->course;
