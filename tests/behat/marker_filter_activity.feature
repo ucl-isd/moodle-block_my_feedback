@@ -25,6 +25,8 @@ Feature: Setting due date to over 2 months in the past hides the activity
       | duedate                             | <duedate>       |
       | assignsubmission_onlinetext_enabled | 1               |
       | assignfeedback_comments_enabled     | 1               |
+      | markingworkflow                     | 1               |
+      | markingallocation                   | 1               |
       | submissiondrafts                    | 0               |
       | assessment_type                     | 1               |
       | markingworkflow                     | 1               |
