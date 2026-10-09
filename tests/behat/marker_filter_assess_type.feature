@@ -23,11 +23,16 @@ Feature: Changing assessment category from summative hides the item
       | duedate                             | ##tomorrow##    |
       | assignsubmission_onlinetext_enabled | 1               |
       | assignfeedback_comments_enabled     | 1               |
+      | markingworkflow                     | 1               |
+      | markingallocation                   | 1               |
       | submissiondrafts                    | 0               |
       | assessment_type                     | <type>          |
     And the following "mod_assign > submissions" exist:
       | assign          | user     | onlinetext            |
       | Test assignment | student1 | Base test submission. |
+    And I allocate the following markers for assignment "Test assignment":
+      | Student  | Marker   |
+      | student1 | teacher1 |
     And the following "blocks" exist:
       | blockname   | contextlevel | reference | pagetypepattern | defaultregion | defaultweight |
       | my_feedback | system       |           | my-index        | content       | 0             |
