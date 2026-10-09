@@ -1,6 +1,5 @@
 @block @block_my_feedback
-Feature: As a marker I want to see only submissions to mark where I am the assigned marker
-  or there is no assigned marker.
+Feature: As a marker I want to see only submissions to mark where I am the assigned marker.
 
   In order to manage submissions more easily
   As a teacher
@@ -51,14 +50,11 @@ Feature: As a marker I want to see only submissions to mark where I am the assig
       | blockname      | contextlevel | reference | pagetypepattern | defaultregion | defaultweight |
       | my_feedback    | system       |           | my-index        | content       | 0             |
 
-  Scenario: A Teacher should see upcoming markings for submission w/o an assigned marker.
-    # As no marker has been set yet teacher1 should see all 3 submissions.
+  Scenario: A teacher should not see upcoming markings without an assigned marker.
     Given I am logged in as "teacher1"
     And I am on site homepage
     And I follow "Dashboard"
-    Then I should see "Marking for Teacher"
-    And I should see "Test assignment"
-    And I should see "3 to mark"
+    Then I should not see "Marking for Teacher"
 
   Scenario: teacher1 should see 2 allocated submissions.
     Given I allocate the following markers for assignment "Test assignment":
@@ -87,17 +83,6 @@ Feature: As a marker I want to see only submissions to mark where I am the assig
     Then I should see "Marking for Teacher"
     And I should see "Test assignment"
     And I should see "1 to mark"
-
-  Scenario: Unallocated submissions remain visible when other submissions have markers.
-    Given I allocate the following markers for assignment "Test assignment":
-      | Student   | Marker    |
-      | student1  | teacher1  |
-      | student2  | teacher2  |
-
-    And I am logged in as "teacher1"
-    And I am on site homepage
-    And I follow "Dashboard"
-    Then I should see "2 to mark"
 
   Scenario: A Teacher should not see upcoming markings for submission from students where others are assigned as marker.
     Given I allocate the following markers for assignment "Test assignment":
