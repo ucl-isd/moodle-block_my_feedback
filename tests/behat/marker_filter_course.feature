@@ -25,6 +25,8 @@ Feature: Hiding the course hides marker items
       | duedate                             | ##tomorrow##    |
       | assignsubmission_onlinetext_enabled | 1               |
       | assignfeedback_comments_enabled     | 1               |
+      | markingworkflow                     | 1               |
+      | markingallocation                   | 1               |
       | submissiondrafts                    | 0               |
       | assessment_type                     | 1               |
       | markingworkflow                     | 1               |
