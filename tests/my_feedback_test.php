@@ -289,6 +289,33 @@ final class my_feedback_test extends advanced_testcase {
     }
 
     /**
+     * User-hidden grades are not returned as feedback until their hide time has passed.
+     *
+     * @return void
+     * @covers ::get_submissions
+     */
+    public function test_get_submissions_excludes_user_hidden_grades(): void {
+        global $DB;
+
+        $item = $DB->get_record('grade_items', [
+            'courseid' => $this->course->id,
+            'itemmodule' => 'assign',
+            'itemname' => 'Grade assign item 1',
+        ], '*', MUST_EXIST);
+        $grade = $DB->get_record('grade_grades', [
+            'itemid' => $item->id,
+            'userid' => $this->student1->id,
+        ], '*', MUST_EXIST);
+        $grade->hidden = time() + DAYSECS;
+        $DB->update_record('grade_grades', $grade);
+
+        $submissions = $this->block->get_submissions($this->student1);
+        $gradeids = array_column($submissions, 'gradeid');
+
+        $this->assertNotContains((int)$grade->id, array_map('intval', $gradeids));
+    }
+
+    /**
      * Test submissions are returned from multiple enrolled courses.
      *
      * @return void
