@@ -50,7 +50,7 @@ class block_my_feedback extends block_base {
     /** @var int|null User whose marker role assignments are cached. */
     private ?int $markerassignmentuserid = null;
 
-    /** @var array<int, bool> Context IDs where the cached user has a marker role. */
+    /** @var array<int, stdClass> Context IDs where the cached user has a marker role. */
     private array $markerassignmentcontexts = [];
 
     /**
@@ -185,7 +185,7 @@ class block_my_feedback extends block_base {
      * Load marker role assignment contexts once per user and block instance.
      *
      * @param int $userid
-     * @return array<int, bool>
+     * @return array<int, stdClass>
      */
     private function get_marker_assignment_contexts(int $userid): array {
         global $DB;
@@ -202,13 +202,12 @@ class block_my_feedback extends block_base {
 
         [$rolesql, $params] = $DB->get_in_or_equal($this->markerroles, SQL_PARAMS_NAMED, 'role');
         $params['userid'] = $userid;
-        $contextids = $DB->get_fieldset_select(
-            'role_assignments',
-            'contextid',
-            "userid = :userid AND roleid $rolesql",
+        $this->markerassignmentcontexts = $DB->get_records_sql(
+            "SELECT DISTINCT contextid
+               FROM {role_assignments}
+              WHERE userid = :userid AND roleid $rolesql",
             $params
         );
-        $this->markerassignmentcontexts = array_fill_keys(array_map('intval', $contextids), true);
         return $this->markerassignmentcontexts;
     }
 
@@ -250,7 +249,7 @@ class block_my_feedback extends block_base {
             if (!$this->is_course_marker($course, (int)$user->id)) {
                 continue;
             }
-            $markercourses[(int)$course->id] = $course;
+            $markercourses[$course->id] = $course;
         }
         if (!$markercourses) {
             return null;
@@ -284,7 +283,7 @@ class block_my_feedback extends block_base {
                 $modulehelpers[$cmid] ??= module_helper::create($mod);
                 $modulehelper = $modulehelpers[$cmid];
                 foreach ($modulehelper->get_marking_targets() as $target) {
-                    if (!$target->duedate || !$this->duedate_in_range($target->duedate)) {
+                    if (!$this->duedate_in_range($target->duedate)) {
                         continue;
                     }
                     $candidates[] = (object)[
@@ -535,8 +534,7 @@ class block_my_feedback extends block_base {
                 $courseid = (int)$record->course;
                 $modinfos[$courseid] ??= get_fast_modinfo($courseid);
                 $cms = $modinfos[$courseid]->get_instances_of($record->modname);
-                $cm = $cms[$record->instance] ?? null;
-                if (!$cm || !$cm->uservisible) {
+                if (!isset($cms[$record->instance]) || !$cms[$record->instance]->uservisible) {
                     continue;
                 }
                 $submissions[$record->gradeid] = $record;
