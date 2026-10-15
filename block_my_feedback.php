@@ -502,46 +502,42 @@ class block_my_feedback extends block_base {
         [$modulesql, $moduleparams] = $DB->get_in_or_equal($supported, SQL_PARAMS_NAMED, 'module');
         $submissions = [];
         $modinfos = [];
-        foreach (array_chunk(array_keys($currentcourses), 500) as $courseids) {
-            [$coursesql, $courseparams] = $DB->get_in_or_equal($courseids, SQL_PARAMS_NAMED, 'course');
-            $params = $moduleparams + $courseparams + [
-                'userid' => $user->id,
-                'since' => $since,
-                'now1' => $now,
-                'now2' => $now,
-                'now3' => $now,
-            ];
-            // Match module_helper::get_student_feedback_grade_records() in one query for all candidate modules.
-            $sql = "SELECT gg.id AS gradeid,
-                           gi.courseid AS course,
-                           gi.itemmodule AS modname,
-                           gi.iteminstance AS instance,
-                           gi.itemname AS name,
-                           gg.userid AS userid,
-                           gg.usermodified AS grader,
-                           gg.timemodified AS lastmodified
-                      FROM {grade_grades} gg
-                      JOIN {grade_items} gi ON gg.itemid = gi.id
-                     WHERE gg.userid = :userid
-                       AND (gg.finalgrade IS NOT NULL OR gg.feedback IS NOT NULL)
-                       AND gg.timemodified BETWEEN :since AND :now1
-                       AND (gg.hidden = 0 OR (gg.hidden > 1 AND gg.hidden <= :now3))
-                       AND gi.courseid $coursesql
-                       AND gi.itemmodule $modulesql
-                       AND (gi.hidden = 0 OR (gi.hidden > 1 AND gi.hidden <= :now2))
-                  ORDER BY gg.timemodified DESC";
-            foreach ($DB->get_records_sql($sql, $params) as $record) {
-                $courseid = (int)$record->course;
-                $modinfos[$courseid] ??= get_fast_modinfo($courseid);
-                $cms = $modinfos[$courseid]->get_instances_of($record->modname);
-                if (!isset($cms[$record->instance]) || !$cms[$record->instance]->uservisible) {
-                    continue;
-                }
-                $submissions[$record->gradeid] = $record;
+        [$coursesql, $courseparams] = $DB->get_in_or_equal(array_keys($currentcourses), SQL_PARAMS_NAMED, 'course');
+        $params = $moduleparams + $courseparams + [
+            'userid' => $user->id,
+            'since' => $since,
+            'now1' => $now,
+            'now2' => $now,
+            'now3' => $now,
+        ];
+        // Match module_helper::get_student_feedback_grade_records() in one query for all candidate modules.
+        $sql = "SELECT gg.id AS gradeid,
+                       gi.courseid AS course,
+                       gi.itemmodule AS modname,
+                       gi.iteminstance AS instance,
+                       gi.itemname AS name,
+                       gg.userid AS userid,
+                       gg.usermodified AS grader,
+                       gg.timemodified AS lastmodified
+                  FROM {grade_grades} gg
+                  JOIN {grade_items} gi ON gg.itemid = gi.id
+                 WHERE gg.userid = :userid
+                   AND (gg.finalgrade IS NOT NULL OR gg.feedback IS NOT NULL)
+                   AND gg.timemodified BETWEEN :since AND :now1
+                   AND (gg.hidden = 0 OR (gg.hidden > 1 AND gg.hidden <= :now3))
+                   AND gi.courseid $coursesql
+                   AND gi.itemmodule $modulesql
+                   AND (gi.hidden = 0 OR (gi.hidden > 1 AND gi.hidden <= :now2))
+              ORDER BY gg.timemodified DESC";
+        foreach ($DB->get_records_sql($sql, $params) as $record) {
+            $courseid = (int)$record->course;
+            $modinfos[$courseid] ??= get_fast_modinfo($courseid);
+            $cms = $modinfos[$courseid]->get_instances_of($record->modname);
+            if (!isset($cms[$record->instance]) || !$cms[$record->instance]->uservisible) {
+                continue;
             }
+            $submissions[$record->gradeid] = $record;
         }
-
-        usort($submissions, fn($a, $b) => $b->lastmodified <=> $a->lastmodified);
 
         return $submissions;
     }
