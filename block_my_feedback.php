@@ -260,7 +260,6 @@ class block_my_feedback extends block_base {
             assess_type::ASSESS_TYPE_SUMMATIVE
         );
         $candidates = [];
-        $order = 0;
         foreach ($markercourses as $courseid => $course) {
             if (empty($summativesbycourse[$courseid])) {
                 continue;
@@ -326,15 +325,13 @@ class block_my_feedback extends block_base {
                         'target' => $target,
                         'feedbackduedate' => $feedbackduedate,
                         'submissionduedate' => (int) $target->duedate,
-                        'order' => $order++,
                     ];
                 }
             }
         }
 
         // Expensive missing-grade counts are only needed until five matching targets are found.
-        usort($candidates, static fn($a, $b): int => $a->feedbackduedate <=> $b->feedbackduedate
-            ?: $a->order <=> $b->order);
+        usort($candidates, static fn($a, $b): int => $a->feedbackduedate <=> $b->feedbackduedate);
         $marking = [];
         $courseimages = [];
         foreach ($candidates as $candidate) {
