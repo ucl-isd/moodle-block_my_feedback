@@ -402,6 +402,28 @@ final class my_feedback_test extends advanced_testcase {
     }
 
     /**
+     * Hidden activities are excluded from the displayed feedback.
+     *
+     * @covers ::fetch_feedback
+     */
+    public function test_fetch_feedback_excludes_hidden_activities(): void {
+        global $DB;
+
+        $this->setUser($this->student1);
+        $feedback = $this->block->fetch_feedback($this->student1);
+        $this->assertContains('Grade assign item 1', array_column($feedback ?? [], 'name'));
+
+        $this->setAdminUser();
+        $assign = $DB->get_record('assign', ['course' => $this->course->id, 'name' => 'Assign 1'], 'id', MUST_EXIST);
+        $cm = get_coursemodule_from_instance('assign', $assign->id, $this->course->id);
+        set_coursemodule_visible($cm->id, 0);
+
+        $this->setUser($this->student1);
+        $feedback = $this->block->fetch_feedback($this->student1);
+        $this->assertNotContains('Grade assign item 1', array_column($feedback ?? [], 'name'));
+    }
+
+    /**
      * Assert that feedback falls back to the course image when the grader user cannot be loaded.
      *
      * @return void
