@@ -306,6 +306,10 @@ final class my_feedback_test extends advanced_testcase {
             'itemid' => $item->id,
             'userid' => $this->student1->id,
         ], '*', MUST_EXIST);
+        $submissions = $this->block->get_submissions($this->student1);
+        $gradeids = array_column($submissions, 'gradeid');
+        $this->assertContains((int)$grade->id, array_map('intval', $gradeids));
+
         $grade->hidden = time() + DAYSECS;
         $DB->update_record('grade_grades', $grade);
 
