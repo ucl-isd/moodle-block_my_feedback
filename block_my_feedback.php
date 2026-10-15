@@ -255,43 +255,35 @@ class block_my_feedback extends block_base {
             return null;
         }
 
-        $summativesbycourse = assess_type::get_assess_type_records_by_courseids(
+        $summatives = assess_type::get_cmids_for_courses_by_type(
             array_keys($markercourses),
             assess_type::ASSESS_TYPE_SUMMATIVE
         );
         $candidates = [];
-        foreach ($markercourses as $courseid => $course) {
-            if (empty($summativesbycourse[$courseid])) {
+        $cmsbycourse = [];
+        $modulehelpers = [];
+        foreach ($summatives as $summative) {
+            $courseid = $summative->courseid;
+            if (!isset($cmsbycourse[$courseid])) {
+                $cmsbycourse[$courseid] = get_fast_modinfo($courseid)->get_cms();
+            }
+            $mod = $cmsbycourse[$courseid][$summative->cmid] ?? null;
+            if (!$mod || !feedback_tracker_helper::is_supported_module($mod->modname)) {
                 continue;
             }
 
-            $modinfo = get_fast_modinfo($courseid);
-            $mods = $modinfo->get_cms();
-            $modulehelpers = [];
-            foreach ($summativesbycourse[$courseid] as $summative) {
-                $cmid = (int)$summative->cmid;
-                $mod = $mods[$cmid] ?? null;
-                if (!$mod) {
+            $modulehelpers[$mod->id] ??= module_helper::create($mod);
+            $modulehelper = $modulehelpers[$mod->id];
+            foreach ($modulehelper->get_marking_targets() as $target) {
+                if (!$this->duedate_in_range($target->duedate)) {
                     continue;
                 }
-
-                if (!$mod->visible || !feedback_tracker_helper::is_supported_module($mod->modname)) {
-                    continue;
-                }
-
-                $modulehelpers[$cmid] ??= module_helper::create($mod);
-                $modulehelper = $modulehelpers[$cmid];
-                foreach ($modulehelper->get_marking_targets() as $target) {
-                    if (!$this->duedate_in_range($target->duedate)) {
-                        continue;
-                    }
-                    $candidates[] = (object)[
-                        'course' => $course,
-                        'mod' => $mod,
-                        'modulehelper' => $modulehelper,
-                        'target' => $target,
-                    ];
-                }
+                $candidates[] = (object)[
+                    'course' => $markercourses[$courseid],
+                    'mod' => $mod,
+                    'modulehelper' => $modulehelper,
+                    'target' => $target,
+                ];
             }
         }
 
