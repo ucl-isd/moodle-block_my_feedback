@@ -255,78 +255,72 @@ class block_my_feedback extends block_base {
             return null;
         }
 
-        $summativesbycourse = assess_type::get_assess_type_records_by_courseids(
+        $summatives = assess_type::get_cmids_for_courses_by_type(
             array_keys($markercourses),
             assess_type::ASSESS_TYPE_SUMMATIVE
         );
         $candidates = [];
-        foreach ($markercourses as $courseid => $course) {
-            if (empty($summativesbycourse[$courseid])) {
+        $cmsbycourse = [];
+        $modulehelpers = [];
+        foreach ($summatives as $summative) {
+            $courseid = $summative->courseid;
+            if (!isset($cmsbycourse[$courseid])) {
+                $cmsbycourse[$courseid] = get_fast_modinfo($courseid)->get_cms();
+            }
+            $mod = $cmsbycourse[$courseid][$summative->cmid] ?? null;
+            if (!$mod || !feedback_tracker_helper::is_supported_module($mod->modname)) {
                 continue;
             }
 
-            $modinfo = get_fast_modinfo($courseid);
-            $mods = $modinfo->get_cms();
-            // Load grade items once per course so markers with many modules do not repeat this query.
-            $gradeitems = feedback_tracker_helper::get_gradeitems_with_overrides($courseid);
-            if (!property_exists($course, 'academicyear')) {
-                $course->academicyear = feedback_tracker_helper::get_academic_year($courseid);
+            $course = $markercourses[$courseid];
+            if (!$mod->visible) {
+                continue;
             }
-            $modulehelpers = [];
-            foreach ($summativesbycourse[$courseid] as $summative) {
-                $cmid = (int)$summative->cmid;
-                $mod = $mods[$cmid] ?? null;
-                if (!$mod || !$cmid) {
+            // Cache grade items and academic year per course while iterating the flattened assessment list.
+            $gradeitemsbycourse[$courseid] ??= feedback_tracker_helper::get_gradeitems_with_overrides($courseid);
+            $academicyearbycourse[$courseid] ??= feedback_tracker_helper::get_academic_year($courseid);
+            $gradeitems = $gradeitemsbycourse[$courseid];
+            $modulegradeitem = $gradeitems["$mod->modname-$mod->instance-"] ?? null;
+            if (empty($modulegradeitem->gradeitemid) && $mod->modname === 'assign') {
+                // Exclude assignments without a grade item from the marker list.
+                continue;
+            }
+
+            $modulehelpers[$mod->id] ??= module_helper::create($mod);
+            $modulehelper = $modulehelpers[$mod->id];
+            foreach ($modulehelper->get_marking_targets() as $target) {
+                if (!$target->duedate) {
                     continue;
                 }
 
-                if (!$mod->visible || !feedback_tracker_helper::is_supported_module($mod->modname)) {
+                $targetpartid = $target->partid ?: '';
+                $targetkey = "$mod->modname-$mod->instance-$targetpartid";
+                $gradeitem = $gradeitems[$targetkey] ?? (object) ['gradeitemid' => 0];
+                $targetgradeitem = (object) [
+                    'id' => (int) ($gradeitem->gradeitemid ?? 0),
+                    'courseid' => $courseid,
+                ];
+                if (!empty($gradeitem->feedbackduedate)) {
+                    $targetgradeitem->feedbackduedate = (int) $gradeitem->feedbackduedate;
+                }
+                $feedbackduedate = feedback_tracker_helper::get_feedbackduedate(
+                    $targetgradeitem,
+                    (int) $target->duedate,
+                    $academicyearbycourse[$courseid]
+                );
+                if (!$this->duedate_in_range((int) $target->duedate)
+                        && !$this->duedate_in_range($feedbackduedate)) {
                     continue;
                 }
 
-                $modulegradeitem = $gradeitems["$mod->modname-$mod->instance-"] ?? null;
-                if (empty($modulegradeitem->gradeitemid) && $mod->modname === 'assign') {
-                    // Exclude assignments without a grade item from the marker list.
-                    continue;
-                }
-
-                $modulehelpers[$cmid] ??= module_helper::create($mod);
-                $modulehelper = $modulehelpers[$cmid];
-                foreach ($modulehelper->get_marking_targets() as $target) {
-                    if (!$target->duedate) {
-                        continue;
-                    }
-
-                    // Match the exact part override. Module-level overrides must not leak to other parts.
-                    $targetpartid = $target->partid ?: '';
-                    $targetkey = "$mod->modname-$mod->instance-$targetpartid";
-                    $gradeitem = $gradeitems[$targetkey] ?? (object) ['gradeitemid' => 0];
-                    $targetgradeitem = (object) [
-                        'id' => (int) ($gradeitem->gradeitemid ?? 0),
-                        'courseid' => $course->id,
-                    ];
-                    if (!empty($gradeitem->feedbackduedate)) {
-                        $targetgradeitem->feedbackduedate = (int) $gradeitem->feedbackduedate;
-                    }
-                    $feedbackduedate = feedback_tracker_helper::get_feedbackduedate(
-                            $targetgradeitem,
-                            (int) $target->duedate,
-                            $course->academicyear
-                        );
-                    if (!$this->duedate_in_range((int) $target->duedate)
-                            && !$this->duedate_in_range($feedbackduedate)) {
-                        continue;
-                    }
-
-                    $candidates[] = (object) [
-                        'course' => $course,
-                        'mod' => $mod,
-                        'modulehelper' => $modulehelper,
-                        'target' => $target,
-                        'feedbackduedate' => $feedbackduedate,
-                        'submissionduedate' => (int) $target->duedate,
-                    ];
-                }
+                $candidates[] = (object) [
+                    'course' => $course,
+                    'mod' => $mod,
+                    'modulehelper' => $modulehelper,
+                    'target' => $target,
+                    'feedbackduedate' => $feedbackduedate,
+                    'submissionduedate' => (int) $target->duedate,
+                ];
             }
         }
 
