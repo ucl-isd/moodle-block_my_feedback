@@ -338,7 +338,7 @@ final class my_feedback_test extends advanced_testcase {
         $this->getDataGenerator()->enrol_user($teacher->id, $course1->id, 'teacher');
         $this->getDataGenerator()->enrol_user($teacher->id, $course2->id, 'teacher');
 
-        foreach ([[$course1, 'Assign course 1'], [$course2, 'Assign course 2']] as [$course, $name]) {
+        foreach ([[$course1, 'Assign course 1'], [$course2, 'Assign course 2']] as $index => [$course, $name]) {
             $module = $this->getDataGenerator()->create_module('assign', [
                 'course' => $course->id,
                 'name' => $name,
@@ -359,7 +359,7 @@ final class my_feedback_test extends advanced_testcase {
                 'attemptnumber' => 0,
                 'grade' => '75',
                 'usermodified' => $teacher->id,
-                'timemodified' => time() - HOURSECS,
+                'timemodified' => time() - (2 - $index) * HOURSECS,
             ]);
         }
 
@@ -372,6 +372,7 @@ final class my_feedback_test extends advanced_testcase {
 
         $this->assertCount(2, $submissions);
         $this->assertEqualsCanonicalizing([$course1->id, $course2->id], $courses);
+        $this->assertEquals([$course2->id, $course1->id], array_column($submissions, 'course'));
     }
 
     /**
