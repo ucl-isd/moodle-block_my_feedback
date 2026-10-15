@@ -433,7 +433,7 @@ class block_my_feedback extends block_base {
             $cms = $modinfos[$f->course]->get_instances_of($f->modname);
             $cm = $cms[$f->instance] ?? null;
 
-            if (!$cm) {
+            if (!$cm || !$cm->uservisible) {
                 continue;
             }
 
@@ -476,7 +476,8 @@ class block_my_feedback extends block_base {
     }
 
     /**
-     * Get all submissions from supported module types for a user that are no older than 3 months.
+     * Get candidate submissions from supported module types for a user that are no older than 3 months.
+     * Activity visibility is checked when the feedback is displayed.
      *
      * @param stdClass $user
      * @return array
@@ -500,8 +501,6 @@ class block_my_feedback extends block_base {
 
         $now = \core\di::get(\core\clock::class)->time();
         [$modulesql, $moduleparams] = $DB->get_in_or_equal($supported, SQL_PARAMS_NAMED, 'module');
-        $submissions = [];
-        $modinfos = [];
         [$coursesql, $courseparams] = $DB->get_in_or_equal(array_keys($currentcourses), SQL_PARAMS_NAMED, 'course');
         $params = $moduleparams + $courseparams + [
             'userid' => $user->id,
@@ -529,17 +528,7 @@ class block_my_feedback extends block_base {
                    AND gi.itemmodule $modulesql
                    AND (gi.hidden = 0 OR (gi.hidden > 1 AND gi.hidden <= :now2))
               ORDER BY gg.timemodified DESC";
-        foreach ($DB->get_records_sql($sql, $params) as $record) {
-            $courseid = (int)$record->course;
-            $modinfos[$courseid] ??= get_fast_modinfo($courseid);
-            $cms = $modinfos[$courseid]->get_instances_of($record->modname);
-            if (!isset($cms[$record->instance]) || !$cms[$record->instance]->uservisible) {
-                continue;
-            }
-            $submissions[$record->gradeid] = $record;
-        }
-
-        return $submissions;
+        return $DB->get_records_sql($sql, $params);
     }
 
     /**
