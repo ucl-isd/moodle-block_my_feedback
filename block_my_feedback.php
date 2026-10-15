@@ -246,7 +246,7 @@ class block_my_feedback extends block_base {
             if (!$course->visible || !$this->is_course_current($course)) {
                 continue;
             }
-            if (!$this->is_course_marker($course, (int)$user->id)) {
+            if (!$this->is_course_marker($course, $user->id)) {
                 continue;
             }
             $markercourses[$course->id] = $course;
