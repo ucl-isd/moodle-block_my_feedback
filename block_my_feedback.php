@@ -265,8 +265,15 @@ class block_my_feedback extends block_base {
                     $targetassess = clone $assess;
                     $targetassess->partid = $target->partid;
 
-                    // Check mod target has duedate and requires marking.
-                    if (!$this->add_mod_data($modulehelper, $targetassess, $target->duedate)) {
+                    $feedbackduedate = $this->get_feedback_due_date(
+                        $summative->gradeitemid,
+                        $course->id,
+                        $target->partid,
+                        (int) $target->duedate
+                    );
+
+                    // Check the target has a feedback due date and requires marking.
+                    if (!$this->add_mod_data($modulehelper, $targetassess, $feedbackduedate)) {
                         continue;
                     }
 
@@ -291,16 +298,49 @@ class block_my_feedback extends block_base {
     }
 
     /**
-     * Return mod target data - due date & require marking.
+     * Get the feedback due date for a marking target.
+     *
+     * @param int $gradeitemid
+     * @param int $courseid
+     * @param int|null $partid
+     * @param int $submissionduedate
+     * @return int
+     */
+    private function get_feedback_due_date(int $gradeitemid, int $courseid, ?int $partid, int $submissionduedate): int {
+        global $DB;
+
+        if (!$submissionduedate) {
+            return 0;
+        }
+
+        $gradeitem = (object) ['courseid' => $courseid];
+        $customduedate = $DB->get_field(
+            'report_feedback_tracker',
+            'feedbackduedate',
+            [
+                'gradeitem' => $gradeitemid,
+                'partid' => $partid ?: null,
+            ],
+            IGNORE_MULTIPLE
+        );
+        if ($customduedate) {
+            $gradeitem->feedbackduedate = (int) $customduedate;
+        }
+
+        return feedback_tracker_helper::get_feedbackduedate($gradeitem, $submissionduedate);
+    }
+
+    /**
+     * Return mod target data - feedback due date & required marking.
      *
      * @param module_helper $modulehelper
      * @param stdClass $assess
-     * @param int $duedate
+     * @param int $feedbackduedate
      * @return bool
      */
-    public function add_mod_data(module_helper $modulehelper, stdClass $assess, int $duedate): bool {
-        // Check that mod has a due date, and the due date is in range.
-        if (($duedate === 0) || !$this->duedate_in_range($duedate)) {
+    public function add_mod_data(module_helper $modulehelper, stdClass $assess, int $feedbackduedate): bool {
+        // Check that mod has a feedback due date, and the due date is in range.
+        if (($feedbackduedate === 0) || !$this->duedate_in_range($feedbackduedate)) {
             return false;
         }
 
@@ -311,8 +351,8 @@ class block_my_feedback extends block_base {
         }
 
         // Add date for sorting and human-readable output.
-        $assess->unixtimestamp = $duedate;
-        $assess->duedate = date('jS M', $duedate);
+        $assess->unixtimestamp = $feedbackduedate;
+        $assess->duedate = date('jS M', $feedbackduedate);
 
         $assess->markingurl = $modulehelper->get_markingurl();
 
