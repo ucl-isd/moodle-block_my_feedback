@@ -307,27 +307,12 @@ class block_my_feedback extends block_base {
      * @return int
      */
     private function get_feedback_due_date(int $gradeitemid, int $courseid, ?int $partid, int $submissionduedate): int {
-        global $DB;
+        $gradeitem = (object) [
+            'id' => $gradeitemid,
+            'courseid' => $courseid,
+        ];
 
-        if (!$submissionduedate) {
-            return 0;
-        }
-
-        $gradeitem = (object) ['courseid' => $courseid];
-        $customduedate = $DB->get_field(
-            'report_feedback_tracker',
-            'feedbackduedate',
-            [
-                'gradeitem' => $gradeitemid,
-                'partid' => $partid ?: null,
-            ],
-            IGNORE_MULTIPLE
-        );
-        if ($customduedate) {
-            $gradeitem->feedbackduedate = (int) $customduedate;
-        }
-
-        return feedback_tracker_helper::get_feedbackduedate($gradeitem, $submissionduedate);
+        return feedback_tracker_helper::get_effective_feedbackduedate($gradeitem, $submissionduedate, $partid);
     }
 
     /**
