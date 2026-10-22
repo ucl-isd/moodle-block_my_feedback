@@ -113,7 +113,12 @@ jobs:
 
       - name: Remove copied Git metadata from installed plugin
         if: ${{ steps.install_moodle.outcome == 'success' }}
-        run: rm -rf "$PLUGIN_DIR/.git"
+        run: |
+          for plugindir in ./plugin ./moodle/blocks/my_feedback ./moodle/public/blocks/my_feedback; do
+            if [ -d "$plugindir/.git" ]; then
+              rm -rf -- "$plugindir/.git"
+            fi
+          done
 
       - name: PHP Lint
         if: ${{ !cancelled() && steps.install_moodle.outcome == 'success' }}
