@@ -481,7 +481,7 @@ class block_my_feedback extends block_base {
         $currentcourses = [];
         foreach ($courses as $course) {
             if ($course->visible && $this->is_course_current($course)) {
-                $currentcourses[(int)$course->id] = true;
+                $currentcourses[$course->id] = true;
             }
         }
         if (!$currentcourses || !$supported) {
