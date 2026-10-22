@@ -213,8 +213,6 @@ class block_my_feedback extends block_base {
         $courses = enrol_get_all_users_courses($user->id, true, ['enddate']);
         // Marking.
         $marking = [];
-        $gradeitemids = [];
-
         foreach ($courses as $course) {
             // Skip hidden or non-current courses.
             if (!$course->visible || !$this->is_course_current($course)) {
@@ -235,6 +233,7 @@ class block_my_feedback extends block_base {
             $modinfo = get_fast_modinfo($course->id);
             $mods = $modinfo->get_cms();
             $cmids = array_column($mods, 'id');
+            $gradeitemids = null;
 
             // Loop through assessments for this course.
             foreach ($summatives as $summative) {
@@ -265,14 +264,22 @@ class block_my_feedback extends block_base {
 
                 $gradeitemid = (int) $summative->gradeitemid;
                 if (!$gradeitemid) {
-                    $gradeitemids[$cmid] ??= $DB->get_field('grade_items', 'id', [
-                        'courseid' => $course->id,
-                        'itemtype' => 'mod',
-                        'itemmodule' => $mod->modname,
-                        'iteminstance' => $mod->instance,
-                        'itemnumber' => 0,
-                    ]);
-                    $gradeitemid = (int) $gradeitemids[$cmid];
+                    if ($gradeitemids === null) {
+                        $gradeitemids = [];
+                        $gradeitems = $DB->get_records('grade_items', [
+                            'courseid' => $course->id,
+                            'itemtype' => 'mod',
+                            'itemnumber' => 0,
+                        ], '', 'id,itemmodule,iteminstance');
+                        foreach ($gradeitems as $gradeitem) {
+                            $gradeitemids[$gradeitem->itemmodule][$gradeitem->iteminstance] = (int) $gradeitem->id;
+                        }
+                    }
+                    $gradeitemid = $gradeitemids[$mod->modname][$mod->instance] ?? 0;
+                    if (!$gradeitemid && $mod->modname === 'assign') {
+                        // An assignment without a grade item cannot have a stored feedback-date override.
+                        continue;
+                    }
                 }
 
                 $modulehelper = module_helper::create($mod);
