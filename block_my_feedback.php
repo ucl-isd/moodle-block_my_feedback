@@ -265,12 +265,19 @@ class block_my_feedback extends block_base {
                     $targetassess = clone $assess;
                     $targetassess->partid = $target->partid;
 
+                    $submissionduedate = (int) $target->duedate;
                     $feedbackduedate = $this->get_feedback_due_date(
                         $summative->gradeitemid,
                         $course->id,
                         $target->partid,
-                        (int) $target->duedate
+                        $submissionduedate
                     );
+
+                    // Keep the existing visibility window based on the submission date. If there
+                    // is no submission date, use the explicit feedback deadline when available.
+                    if (!$this->duedate_in_range($submissionduedate ?: $feedbackduedate)) {
+                        continue;
+                    }
 
                     // Check the target has a feedback due date and requires marking.
                     if (!$this->add_mod_data($modulehelper, $targetassess, $feedbackduedate)) {
@@ -324,8 +331,8 @@ class block_my_feedback extends block_base {
      * @return bool
      */
     public function add_mod_data(module_helper $modulehelper, stdClass $assess, int $feedbackduedate): bool {
-        // Check that mod has a feedback due date, and the due date is in range.
-        if (($feedbackduedate === 0) || !$this->duedate_in_range($feedbackduedate)) {
+        // Check that mod has a feedback due date.
+        if ($feedbackduedate === 0) {
             return false;
         }
 
