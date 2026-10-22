@@ -415,7 +415,8 @@ final class my_feedback_test extends advanced_testcase {
 
         $this->setUser($this->student1);
         $feedback = $this->block->fetch_feedback($this->student1);
-        $this->assertContains('Grade assign item 1', array_column($feedback ?? [], 'name'));
+        $this->assertNotNull($feedback);
+        $this->assertContains('Grade assign item 1', array_column($feedback, 'name'));
 
         $this->setAdminUser();
         $assign = $DB->get_record('assign', ['course' => $this->course->id, 'name' => 'Assign 1'], 'id', MUST_EXIST);
@@ -424,7 +425,8 @@ final class my_feedback_test extends advanced_testcase {
 
         $this->setUser($this->student1);
         $feedback = $this->block->fetch_feedback($this->student1);
-        $this->assertNotContains('Grade assign item 1', array_column($feedback ?? [], 'name'));
+        $this->assertNotNull($feedback);
+        $this->assertNotContains('Grade assign item 1', array_column($feedback, 'name'));
     }
 
     /**
