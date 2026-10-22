@@ -207,10 +207,13 @@ class block_my_feedback extends block_base {
      * @return array|null
      */
     public function fetch_marking(stdClass $user): ?array {
+        global $DB;
+
         // Active user courses.
         $courses = enrol_get_all_users_courses($user->id, true, ['enddate']);
         // Marking.
         $marking = [];
+        $gradeitemids = [];
 
         foreach ($courses as $course) {
             // Skip hidden or non-current courses.
@@ -260,6 +263,18 @@ class block_my_feedback extends block_base {
                 // If so should we only do it once we know we want to display it?
                 $assess->icon = course_summary_exporter::get_course_image($course);
 
+                $gradeitemid = (int) $summative->gradeitemid;
+                if (!$gradeitemid) {
+                    $gradeitemids[$cmid] ??= (int) $DB->get_field('grade_items', 'id', [
+                        'courseid' => $course->id,
+                        'itemtype' => 'mod',
+                        'itemmodule' => $mod->modname,
+                        'iteminstance' => $mod->instance,
+                        'itemnumber' => 0,
+                    ]);
+                    $gradeitemid = $gradeitemids[$cmid];
+                }
+
                 $modulehelper = module_helper::create($mod);
                 foreach ($modulehelper->get_marking_targets() as $target) {
                     $targetassess = clone $assess;
@@ -267,20 +282,14 @@ class block_my_feedback extends block_base {
 
                     $submissionduedate = (int) $target->duedate;
                     $feedbackduedate = $this->get_feedback_due_date(
-                        $summative->gradeitemid,
+                        $gradeitemid,
                         $course->id,
                         $target->partid,
                         $submissionduedate
                     );
 
-                    // Keep the existing visibility window based on the submission date. If there
-                    // is no submission date, use the explicit feedback deadline when available.
-                    if (!$this->duedate_in_range($submissionduedate ?: $feedbackduedate)) {
-                        continue;
-                    }
-
                     // Check the target has a feedback due date and requires marking.
-                    if (!$this->add_mod_data($modulehelper, $targetassess, $feedbackduedate)) {
+                    if (!$this->add_mod_data($modulehelper, $targetassess, $feedbackduedate, $submissionduedate)) {
                         continue;
                     }
 
@@ -328,11 +337,20 @@ class block_my_feedback extends block_base {
      * @param module_helper $modulehelper
      * @param stdClass $assess
      * @param int $feedbackduedate
+     * @param int $submissionduedate Preserve the existing submission-date visibility window.
      * @return bool
      */
-    public function add_mod_data(module_helper $modulehelper, stdClass $assess, int $feedbackduedate): bool {
-        // Check that mod has a feedback due date.
-        if ($feedbackduedate === 0) {
+    public function add_mod_data(
+        module_helper $modulehelper,
+        stdClass $assess,
+        int $feedbackduedate,
+        int $submissionduedate = 0
+    ): bool {
+        // Keep the old submission-date window, and include items whose feedback deadline is in range.
+        if (
+            $feedbackduedate === 0 ||
+            (!$this->duedate_in_range($submissionduedate) && !$this->duedate_in_range($feedbackduedate))
+        ) {
             return false;
         }
 

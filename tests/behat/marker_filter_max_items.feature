@@ -1,7 +1,7 @@
 @block @block_my_feedback @javascript
-Feature: Marker view shows a maximum of 5 items ordered by due date
+Feature: Marker view shows a maximum of 5 items ordered by feedback due date
 
-  Scenario: Marker view shows a maximum of 5 items ordered by due date
+  Scenario: Marker view shows a maximum of 5 items ordered by feedback due date
     Given the following "courses" exist:
       | fullname | shortname |
       | Course 1 | C1        |
@@ -54,19 +54,21 @@ Feature: Marker view shows a maximum of 5 items ordered by due date
     And I allocate the following markers for assignment "Assign 6":
       | Student  | Marker   |
       | student1 | teacher1 |
+    # Assign 6 has the latest submission date, but its manual feedback deadline is earliest.
+    And I set the feedback due date for assignment "Assign 6" to "tomorrow"
 
     And I am logged in as "teacher1"
     And I follow "Dashboard"
 
     Then I should see "Marking for Teacher"
+    And I should see "Assign 6" in the "My feedback" "block"
     And I should see "Assign 1" in the "My feedback" "block"
     And I should see "Assign 2" in the "My feedback" "block"
     And I should see "Assign 3" in the "My feedback" "block"
     And I should see "Assign 4" in the "My feedback" "block"
-    And I should see "Assign 5" in the "My feedback" "block"
-    But I should not see "Assign 6" in the "My feedback" "block"
+    But I should not see "Assign 5" in the "My feedback" "block"
 
+    And "Assign 6" "text" should appear before "Assign 1" "text"
     And "Assign 1" "text" should appear before "Assign 2" "text"
     And "Assign 2" "text" should appear before "Assign 3" "text"
     And "Assign 3" "text" should appear before "Assign 4" "text"
-    And "Assign 4" "text" should appear before "Assign 5" "text"
