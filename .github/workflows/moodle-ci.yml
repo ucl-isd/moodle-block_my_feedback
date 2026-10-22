@@ -94,7 +94,12 @@ jobs:
           sudo locale-gen en_AU.UTF-8
           echo "NVM_DIR=$HOME/.nvm" >> $GITHUB_ENV
       - name: Install moodle-plugin-ci
+        id: install_moodle
         run: |
+          if [ -z "$GHA_MOODLE_READ_ACCESS" ]; then
+            echo "::error::Set the GHA_MOODLE_READ_ACCESS repository secret to a read-only token that can clone moodle-report_feedback_tracker."
+            exit 1
+          fi
           moodle-plugin-ci add-plugin -b main --clone https://github.com/ucl-isd/moodle-local_assess_type.git
           moodle-plugin-ci add-plugin -b CTP-6891-feedback-due-date --clone https://x-access-token:"$GHA_MOODLE_READ_ACCESS"@github.com/ucl-isd/moodle-report_feedback_tracker.git
           moodle-plugin-ci add-plugin -b main --clone https://github.com/ucl-isd/moodle-mod_coursework.git
@@ -106,51 +111,55 @@ jobs:
           # Uncomment this to run Behat tests using the Moodle App.
           # MOODLE_APP: 'true'
 
+      - name: Remove copied Git metadata from installed plugin
+        if: ${{ steps.install_moodle.outcome == 'success' }}
+        run: rm -rf "$PLUGIN_DIR/.git"
+
       - name: PHP Lint
-        if: ${{ !cancelled() }}
-        run: moodle-plugin-ci phplint ./plugin
+        if: ${{ !cancelled() && steps.install_moodle.outcome == 'success' }}
+        run: moodle-plugin-ci phplint
 
       - name: PHP Copy/Paste Detector
         continue-on-error: true # This step will show errors but will not fail
-        if: ${{ !cancelled() }}
-        run: moodle-plugin-ci phpcpd ./plugin
+        if: ${{ !cancelled() && steps.install_moodle.outcome == 'success' }}
+        run: moodle-plugin-ci phpcpd
 
       - name: PHP Mess Detector
         continue-on-error: true # This step will show errors but will not fail
-        if: ${{ !cancelled() }}
-        run: moodle-plugin-ci phpmd ./plugin
+        if: ${{ !cancelled() && steps.install_moodle.outcome == 'success' }}
+        run: moodle-plugin-ci phpmd
 
       - name: Moodle Code Checker
-        if: ${{ !cancelled() }}
-        run: moodle-plugin-ci phpcs --max-warnings 0 ./plugin
+        if: ${{ !cancelled() && steps.install_moodle.outcome == 'success' }}
+        run: moodle-plugin-ci phpcs --max-warnings 0
 
       - name: Moodle PHPDoc Checker
-        if: ${{ !cancelled() }}
-        run: moodle-plugin-ci phpdoc --max-warnings 0 ./plugin
+        if: ${{ !cancelled() && steps.install_moodle.outcome == 'success' }}
+        run: moodle-plugin-ci phpdoc --max-warnings 0
 
       - name: Validating
-        if: ${{ !cancelled() }}
-        run: moodle-plugin-ci validate ./plugin
+        if: ${{ !cancelled() && steps.install_moodle.outcome == 'success' }}
+        run: moodle-plugin-ci validate
 
       - name: Check upgrade savepoints
-        if: ${{ !cancelled() }}
-        run: moodle-plugin-ci savepoints ./plugin
+        if: ${{ !cancelled() && steps.install_moodle.outcome == 'success' }}
+        run: moodle-plugin-ci savepoints
 
       - name: Mustache Lint
-        if: ${{ !cancelled() }}
-        run: moodle-plugin-ci mustache ./plugin
+        if: ${{ !cancelled() && steps.install_moodle.outcome == 'success' }}
+        run: moodle-plugin-ci mustache
 
       - name: Grunt
-        if: ${{ !cancelled() }}
-        run: moodle-plugin-ci grunt --max-lint-warnings 0 ./plugin
+        if: ${{ !cancelled() && steps.install_moodle.outcome == 'success' }}
+        run: moodle-plugin-ci grunt --max-lint-warnings 0
 
       - name: PHPUnit tests
-        if: ${{ !cancelled() }}
-        run: moodle-plugin-ci phpunit --fail-on-warning ./plugin
+        if: ${{ !cancelled() && steps.install_moodle.outcome == 'success' }}
+        run: moodle-plugin-ci phpunit --fail-on-warning
 
       - name: Behat features
-        if: ${{ !cancelled() }}
-        run: moodle-plugin-ci behat --profile chrome ./plugin
+        if: ${{ !cancelled() && steps.install_moodle.outcome == 'success' }}
+        run: moodle-plugin-ci behat --profile chrome
 
       - name: Mark cancelled jobs as failed.
         if: ${{ cancelled() }}
