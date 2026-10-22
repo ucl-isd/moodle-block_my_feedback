@@ -101,13 +101,15 @@ jobs:
             exit 1
           fi
           moodle-plugin-ci add-plugin -b main --clone https://github.com/ucl-isd/moodle-local_assess_type.git
-          moodle-plugin-ci add-plugin -b CTP-6891-feedback-due-date --clone https://x-access-token:"$GHA_MOODLE_READ_ACCESS"@github.com/ucl-isd/moodle-report_feedback_tracker.git
+          moodle-plugin-ci add-plugin -b "$FEEDBACK_TRACKER_BRANCH" --clone https://x-access-token:"$GHA_MOODLE_READ_ACCESS"@github.com/ucl-isd/moodle-report_feedback_tracker.git
           moodle-plugin-ci add-plugin -b main --clone https://github.com/ucl-isd/moodle-mod_coursework.git
           moodle-plugin-ci install --plugin ./plugin --db-host=127.0.0.1
         env:
           DB: ${{ matrix.database }}
           MOODLE_BRANCH: ${{ matrix.moodle-branch }}
           GHA_MOODLE_READ_ACCESS: ${{ secrets.GHA_MOODLE_READ_ACCESS }}
+          # Use the matching API branch while testing CTP-6891; default to main after merge.
+          FEEDBACK_TRACKER_BRANCH: ${{ (github.head_ref == 'CTP-6891-feedback-due-date' || github.ref_name == 'CTP-6891-feedback-due-date') && 'CTP-6891-feedback-due-date' || 'main' }}
           # Uncomment this to run Behat tests using the Moodle App.
           # MOODLE_APP: 'true'
 

@@ -265,14 +265,14 @@ class block_my_feedback extends block_base {
 
                 $gradeitemid = (int) $summative->gradeitemid;
                 if (!$gradeitemid) {
-                    $gradeitemids[$cmid] ??= (int) $DB->get_field('grade_items', 'id', [
+                    $gradeitemids[$cmid] ??= $DB->get_field('grade_items', 'id', [
                         'courseid' => $course->id,
                         'itemtype' => 'mod',
                         'itemmodule' => $mod->modname,
                         'iteminstance' => $mod->instance,
                         'itemnumber' => 0,
                     ]);
-                    $gradeitemid = $gradeitemids[$cmid];
+                    $gradeitemid = (int) $gradeitemids[$cmid];
                 }
 
                 $modulehelper = module_helper::create($mod);
@@ -323,6 +323,11 @@ class block_my_feedback extends block_base {
      * @return int
      */
     private function get_feedback_due_date(int $gradeitemid, int $courseid, ?int $partid, int $submissionduedate): int {
+        if (!$gradeitemid) {
+            // Some supported modules have no grade item; they can still use the default deadline.
+            return feedback_tracker_helper::get_feedbackduedate((object) ['courseid' => $courseid], $submissionduedate);
+        }
+
         $gradeitem = (object) [
             'id' => $gradeitemid,
             'courseid' => $courseid,
