@@ -68,7 +68,7 @@ Feature: Marker view shows a maximum of 5 items ordered by feedback due date
     And I should see "Assign 4" in the "My feedback" "block"
     But I should not see "Assign 5" in the "My feedback" "block"
 
-    And "Assign 6" "text" should appear before "Assign 1" "text"
-    And "Assign 1" "text" should appear before "Assign 2" "text"
-    And "Assign 2" "text" should appear before "Assign 3" "text"
-    And "Assign 3" "text" should appear before "Assign 4" "text"
+    And "Assign 6" "text" should appear before "Assign 1" "text" in the "My feedback" "block"
+    And "Assign 1" "text" should appear before "Assign 2" "text" in the "My feedback" "block"
+    And "Assign 2" "text" should appear before "Assign 3" "text" in the "My feedback" "block"
+    And "Assign 3" "text" should appear before "Assign 4" "text" in the "My feedback" "block"
