@@ -289,6 +289,37 @@ final class my_feedback_test extends advanced_testcase {
     }
 
     /**
+     * User-hidden grades are not returned as feedback until their hide time has passed.
+     *
+     * @return void
+     * @covers ::get_submissions
+     */
+    public function test_get_submissions_excludes_user_hidden_grades(): void {
+        global $DB;
+
+        $item = $DB->get_record('grade_items', [
+            'courseid' => $this->course->id,
+            'itemmodule' => 'assign',
+            'itemname' => 'Grade assign item 1',
+        ], '*', MUST_EXIST);
+        $grade = $DB->get_record('grade_grades', [
+            'itemid' => $item->id,
+            'userid' => $this->student1->id,
+        ], '*', MUST_EXIST);
+        $submissions = $this->block->get_submissions($this->student1);
+        $gradeids = array_column($submissions, 'gradeid');
+        $this->assertContains((int)$grade->id, array_map('intval', $gradeids));
+
+        $grade->hidden = time() + DAYSECS;
+        $DB->update_record('grade_grades', $grade);
+
+        $submissions = $this->block->get_submissions($this->student1);
+        $gradeids = array_column($submissions, 'gradeid');
+
+        $this->assertNotContains((int)$grade->id, array_map('intval', $gradeids));
+    }
+
+    /**
      * Test submissions are returned from multiple enrolled courses.
      *
      * @return void
@@ -311,7 +342,7 @@ final class my_feedback_test extends advanced_testcase {
         $this->getDataGenerator()->enrol_user($teacher->id, $course1->id, 'teacher');
         $this->getDataGenerator()->enrol_user($teacher->id, $course2->id, 'teacher');
 
-        foreach ([[$course1, 'Assign course 1'], [$course2, 'Assign course 2']] as [$course, $name]) {
+        foreach ([[$course1, 'Assign course 1'], [$course2, 'Assign course 2']] as $index => [$course, $name]) {
             $module = $this->getDataGenerator()->create_module('assign', [
                 'course' => $course->id,
                 'name' => $name,
@@ -332,7 +363,7 @@ final class my_feedback_test extends advanced_testcase {
                 'attemptnumber' => 0,
                 'grade' => '75',
                 'usermodified' => $teacher->id,
-                'timemodified' => time() - HOURSECS,
+                'timemodified' => time() - (2 - $index) * HOURSECS,
             ]);
         }
 
@@ -345,6 +376,7 @@ final class my_feedback_test extends advanced_testcase {
 
         $this->assertCount(2, $submissions);
         $this->assertEqualsCanonicalizing([$course1->id, $course2->id], $courses);
+        $this->assertEquals([$course2->id, $course1->id], array_column($submissions, 'course'));
     }
 
     /**
@@ -371,6 +403,30 @@ final class my_feedback_test extends advanced_testcase {
         if ($feedback !== null) {
             $this->assertCount(1, $feedback, 'Returning only 1 visible recent submission for student 2.');
         }
+    }
+
+    /**
+     * Hidden activities are excluded from the displayed feedback.
+     *
+     * @covers ::fetch_feedback
+     */
+    public function test_fetch_feedback_excludes_hidden_activities(): void {
+        global $DB;
+
+        $this->setUser($this->student1);
+        $feedback = $this->block->fetch_feedback($this->student1);
+        $this->assertNotNull($feedback);
+        $this->assertContains('Grade assign item 1', array_column($feedback, 'name'));
+
+        $this->setAdminUser();
+        $assign = $DB->get_record('assign', ['course' => $this->course->id, 'name' => 'Assign 1'], 'id', MUST_EXIST);
+        $cm = get_coursemodule_from_instance('assign', $assign->id, $this->course->id);
+        set_coursemodule_visible($cm->id, 0);
+
+        $this->setUser($this->student1);
+        $feedback = $this->block->fetch_feedback($this->student1);
+        $this->assertNotNull($feedback);
+        $this->assertNotContains('Grade assign item 1', array_column($feedback, 'name'));
     }
 
     /**
