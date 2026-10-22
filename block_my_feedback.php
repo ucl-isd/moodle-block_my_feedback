@@ -337,7 +337,7 @@ class block_my_feedback extends block_base {
         }
 
         // Check that mod has missing markings.
-        $assess->requiremarking = $modulehelper->count_missing_grades_for_marker(includeunallocated: true);
+        $assess->requiremarking = $modulehelper->count_missing_grades(markeronly: true);
         if ($assess->requiremarking === 0) {
             return false;
         }
