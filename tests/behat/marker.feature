@@ -84,6 +84,33 @@ Feature: As a marker I want to see only submissions to mark where I am the assig
     And I should see "Test assignment"
     And I should see "1 to mark"
 
+  Scenario: An upcoming feedback deadline includes an older allocated submission.
+    Given the following "activity" exists:
+      | activity                            | assign           |
+      | name                                | Older assignment |
+      | course                              | C1               |
+      | duedate                             | ##3 months ago## |
+      | assignsubmission_onlinetext_enabled | 1                |
+      | assignfeedback_comments_enabled     | 1                |
+      | markingworkflow                     | 1                |
+      | markingallocation                   | 1                |
+      | submissiondrafts                    | 0                |
+      | assessment_type                     | 1                |
+    And the following "mod_assign > submissions" exist:
+      | assign           | user     | onlinetext          |
+      | Older assignment | student1 | An old submission. |
+    And I allocate the following markers for assignment "Older assignment":
+      | Student  | Marker   |
+      | student1 | teacher1 |
+    And I am logged in as "teacher1"
+    And I follow "Dashboard"
+    Then I should not see "Older assignment"
+
+    When I set the feedback due date for assignment "Older assignment" to "##tomorrow##"
+    And I am on site homepage
+    And I follow "Dashboard"
+    Then I should see "Older assignment" in the "My feedback" "block"
+
   Scenario: A Teacher should not see upcoming markings for submission from students where others are assigned as marker.
     Given I allocate the following markers for assignment "Test assignment":
       | Student   | Marker    |

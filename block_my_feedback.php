@@ -240,6 +240,8 @@ class block_my_feedback extends block_base {
      * @return array|null
      */
     public function fetch_marking(stdClass $user): ?array {
+        global $DB;
+
         $courses = enrol_get_all_users_courses($user->id, true, ['enddate']);
         $markercourses = [];
         foreach ($courses as $course) {
@@ -259,26 +261,48 @@ class block_my_feedback extends block_base {
             array_keys($markercourses),
             assess_type::ASSESS_TYPE_SUMMATIVE
         );
-        $candidates = [];
+        $targets = [];
         $cmsbycourse = [];
         $modulehelpers = [];
+        $gradeitemidsbycourse = [];
         foreach ($summatives as $summative) {
             $courseid = $summative->courseid;
             if (!isset($cmsbycourse[$courseid])) {
                 $cmsbycourse[$courseid] = get_fast_modinfo($courseid)->get_cms();
             }
             $mod = $cmsbycourse[$courseid][$summative->cmid] ?? null;
-            if (!$mod || !feedback_tracker_helper::is_supported_module($mod->modname)) {
+            if (!$mod || !$mod->visible || !feedback_tracker_helper::is_supported_module($mod->modname)) {
                 continue;
+            }
+
+            $gradeitemid = (int) $summative->gradeitemid;
+            if (!$gradeitemid) {
+                if (!array_key_exists($courseid, $gradeitemidsbycourse)) {
+                    $gradeitemidsbycourse[$courseid] = [];
+                    $gradeitems = $DB->get_records('grade_items', [
+                        'courseid' => $courseid,
+                        'itemtype' => 'mod',
+                        'itemnumber' => 0,
+                    ], '', 'id,itemmodule,iteminstance');
+                    foreach ($gradeitems as $gradeitem) {
+                        $gradeitemidsbycourse[$courseid][$gradeitem->itemmodule][$gradeitem->iteminstance] =
+                            (int) $gradeitem->id;
+                    }
+                }
+                $gradeitemid = $gradeitemidsbycourse[$courseid][$mod->modname][$mod->instance] ?? 0;
+                if (!$gradeitemid && $mod->modname === 'assign') {
+                    // Assignments without a grade item cannot have a stored feedback-date override.
+                    continue;
+                }
             }
 
             $modulehelpers[$mod->id] ??= module_helper::create($mod);
             $modulehelper = $modulehelpers[$mod->id];
             foreach ($modulehelper->get_marking_targets() as $target) {
-                if (!$this->duedate_in_range($target->duedate)) {
-                    continue;
-                }
-                $candidates[] = (object)[
+                $targets[] = (object) [
+                    'gradeitem' => (object) ['id' => $gradeitemid, 'courseid' => $courseid],
+                    'duedate' => (int) $target->duedate,
+                    'partid' => $target->partid,
                     'course' => $markercourses[$courseid],
                     'mod' => $mod,
                     'modulehelper' => $modulehelper,
@@ -287,8 +311,27 @@ class block_my_feedback extends block_base {
             }
         }
 
-        // Expensive missing-grade counts are only needed until five matching targets are found.
-        usort($candidates, static fn($a, $b): int => $a->target->duedate <=> $b->target->duedate);
+        if (!$targets) {
+            return null;
+        }
+
+        // Resolve overrides in one batch, then only count missing grades for the five earliest eligible targets.
+        $feedbackduedates = feedback_tracker_helper::get_effective_feedbackduedates($targets);
+        $candidates = [];
+        foreach ($targets as $index => $candidate) {
+            $feedbackduedate = $feedbackduedates[$index] ?? 0;
+            if (
+                $feedbackduedate === 0 ||
+                (!$this->duedate_in_range($candidate->target->duedate) &&
+                    !$this->duedate_in_range($feedbackduedate))
+            ) {
+                continue;
+            }
+            $candidate->feedbackduedate = $feedbackduedate;
+            $candidates[] = $candidate;
+        }
+        usort($candidates, static fn($a, $b): int => $a->feedbackduedate <=> $b->feedbackduedate);
+
         $marking = [];
         $courseimages = [];
         foreach ($candidates as $candidate) {
@@ -301,7 +344,12 @@ class block_my_feedback extends block_base {
             $assess->name = $mod->name;
             $assess->coursename = $course->fullname;
             $assess->partid = $target->partid;
-            if (!$this->add_mod_data($candidate->modulehelper, $assess, $target->duedate)) {
+            if (!$this->add_mod_data(
+                $candidate->modulehelper,
+                $assess,
+                $candidate->feedbackduedate,
+                (int) $target->duedate
+            )) {
                 continue;
             }
 
@@ -321,32 +369,35 @@ class block_my_feedback extends block_base {
     }
 
     /**
-     * Return mod target data - due date & require marking.
+     * Return mod target data - feedback due date & required marking.
      *
      * @param module_helper $modulehelper
      * @param stdClass $assess
-     * @param int $duedate
+     * @param int $feedbackduedate
+     * @param int $submissionduedate
      * @return bool
      */
-    public function add_mod_data(module_helper $modulehelper, stdClass $assess, int $duedate): bool {
-        // Check that mod has a due date, and the due date is in range.
-        if (($duedate === 0) || !$this->duedate_in_range($duedate)) {
+    public function add_mod_data(
+        module_helper $modulehelper,
+        stdClass $assess,
+        int $feedbackduedate,
+        int $submissionduedate = 0
+    ): bool {
+        if (
+            $feedbackduedate === 0 ||
+            (!$this->duedate_in_range($submissionduedate) && !$this->duedate_in_range($feedbackduedate))
+        ) {
             return false;
         }
 
-        // Check that mod has missing markings.
         $assess->requiremarking = $modulehelper->count_missing_grades(markeronly: true);
         if ($assess->requiremarking === 0) {
             return false;
         }
 
-        // Add date for sorting and human-readable output.
-        $assess->unixtimestamp = $duedate;
-        $assess->duedate = date('jS M', $duedate);
-
+        $assess->unixtimestamp = $feedbackduedate;
+        $assess->duedate = date('jS M', $feedbackduedate);
         $assess->markingurl = $modulehelper->get_markingurl();
-
-        // Return template data.
         return true;
     }
 

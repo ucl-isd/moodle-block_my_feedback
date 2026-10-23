@@ -29,6 +29,8 @@ Feature: Setting due date to over 2 months in the past hides the activity
       | markingallocation                   | 1               |
       | submissiondrafts                    | 0               |
       | assessment_type                     | 1               |
+      | markingworkflow                     | 1               |
+      | markingallocation                   | 1               |
       | visible                             | <visible>       |
     And the following "mod_assign > submissions" exist:
       | assign          | user     | onlinetext            |

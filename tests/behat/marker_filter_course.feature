@@ -29,6 +29,8 @@ Feature: Hiding the course hides marker items
       | markingallocation                   | 1               |
       | submissiondrafts                    | 0               |
       | assessment_type                     | 1               |
+      | markingworkflow                     | 1               |
+      | markingallocation                   | 1               |
     And the following "mod_assign > submissions" exist:
       | assign          | user     | onlinetext            |
       | Test assignment | student1 | Base test submission. |

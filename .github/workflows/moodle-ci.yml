@@ -19,13 +19,12 @@ jobs:
       mariadb:
         image: mariadb:11.8-ubi
         env:
-          MYSQL_USER: 'root'
-          MYSQL_ALLOW_EMPTY_PASSWORD: "true"
-          MYSQL_CHARACTER_SET_SERVER: "utf8mb4"
-          MYSQL_COLLATION_SERVER: "utf8mb4_unicode_ci"
+          MARIADB_ALLOW_EMPTY_ROOT_PASSWORD: "1"
+          MARIADB_CHARACTER_SET_SERVER: "utf8mb4"
+          MARIADB_COLLATION_SERVER: "utf8mb4_unicode_ci"
         ports:
           - 3306:3306
-        options: --health-cmd="mysqladmin ping" --health-interval 10s --health-timeout 5s --health-retries 3
+        options: --health-cmd="healthcheck.sh --connect --innodb_initialized" --health-interval 10s --health-timeout 5s --health-retries 3
 
     strategy:
       fail-fast: false
@@ -95,62 +94,79 @@ jobs:
           sudo locale-gen en_AU.UTF-8
           echo "NVM_DIR=$HOME/.nvm" >> $GITHUB_ENV
       - name: Install moodle-plugin-ci
+        id: install_moodle
         run: |
-          moodle-plugin-ci add-plugin -b CTP-6837-fix-performance --clone https://github.com/ucl-isd/moodle-local_assess_type.git
-          moodle-plugin-ci add-plugin -b main --clone https://aspark21:"$GHA_MOODLE_READ_ACCESS"@github.com/ucl-isd/moodle-report_feedback_tracker.git
+          if [ -z "$GHA_MOODLE_READ_ACCESS" ]; then
+            echo "::error::Set the GHA_MOODLE_READ_ACCESS repository secret to a read-only token that can clone moodle-report_feedback_tracker."
+            exit 1
+          fi
+          moodle-plugin-ci add-plugin -b "$LOCAL_ASSESS_TYPE_BRANCH" --clone https://github.com/ucl-isd/moodle-local_assess_type.git
+          moodle-plugin-ci add-plugin -b "$FEEDBACK_TRACKER_BRANCH" --clone https://x-access-token:"$GHA_MOODLE_READ_ACCESS"@github.com/ucl-isd/moodle-report_feedback_tracker.git
           moodle-plugin-ci add-plugin -b main --clone https://github.com/ucl-isd/moodle-mod_coursework.git
           moodle-plugin-ci install --plugin ./plugin --db-host=127.0.0.1
         env:
           DB: ${{ matrix.database }}
           MOODLE_BRANCH: ${{ matrix.moodle-branch }}
           GHA_MOODLE_READ_ACCESS: ${{ secrets.GHA_MOODLE_READ_ACCESS }}
+          # Use each companion feature branch while testing the combined workflow branch.
+          LOCAL_ASSESS_TYPE_BRANCH: ${{ (github.head_ref == 'CTP-6837-fix-performance' || github.ref_name == 'CTP-6837-fix-performance' || github.head_ref == '45-workflow-test' || github.ref_name == '45-workflow-test') && 'CTP-6837-fix-performance' || 'main' }}
+          FEEDBACK_TRACKER_BRANCH: ${{ (github.head_ref == 'CTP-6891-feedback-due-date' || github.ref_name == 'CTP-6891-feedback-due-date' || github.head_ref == '45-workflow-test' || github.ref_name == '45-workflow-test') && 'CTP-6891-feedback-due-date' || 'main' }}
           # Uncomment this to run Behat tests using the Moodle App.
           # MOODLE_APP: 'true'
 
+      - name: Remove copied Git metadata from installed plugin
+        if: ${{ steps.install_moodle.outcome == 'success' }}
+        run: |
+          for plugindir in ./plugin ./moodle/blocks/my_feedback ./moodle/public/blocks/my_feedback; do
+            if [ -d "$plugindir/.git" ]; then
+              rm -rf -- "$plugindir/.git"
+            fi
+          done
+
       - name: PHP Lint
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && steps.install_moodle.outcome == 'success' }}
         run: moodle-plugin-ci phplint
 
       - name: PHP Copy/Paste Detector
         continue-on-error: true # This step will show errors but will not fail
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && steps.install_moodle.outcome == 'success' }}
         run: moodle-plugin-ci phpcpd
 
       - name: PHP Mess Detector
         continue-on-error: true # This step will show errors but will not fail
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && steps.install_moodle.outcome == 'success' }}
         run: moodle-plugin-ci phpmd
 
       - name: Moodle Code Checker
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && steps.install_moodle.outcome == 'success' }}
         run: moodle-plugin-ci phpcs --max-warnings 0
 
       - name: Moodle PHPDoc Checker
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && steps.install_moodle.outcome == 'success' }}
         run: moodle-plugin-ci phpdoc --max-warnings 0
 
       - name: Validating
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && steps.install_moodle.outcome == 'success' }}
         run: moodle-plugin-ci validate
 
       - name: Check upgrade savepoints
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && steps.install_moodle.outcome == 'success' }}
         run: moodle-plugin-ci savepoints
 
       - name: Mustache Lint
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && steps.install_moodle.outcome == 'success' }}
         run: moodle-plugin-ci mustache
 
       - name: Grunt
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && steps.install_moodle.outcome == 'success' }}
         run: moodle-plugin-ci grunt --max-lint-warnings 0
 
       - name: PHPUnit tests
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && steps.install_moodle.outcome == 'success' }}
         run: moodle-plugin-ci phpunit --fail-on-warning
 
       - name: Behat features
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && steps.install_moodle.outcome == 'success' }}
         run: moodle-plugin-ci behat --profile chrome
 
       - name: Mark cancelled jobs as failed.

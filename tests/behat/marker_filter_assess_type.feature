@@ -27,6 +27,8 @@ Feature: Changing assessment category from summative hides the item
       | markingallocation                   | 1               |
       | submissiondrafts                    | 0               |
       | assessment_type                     | <type>          |
+      | markingworkflow                     | 1               |
+      | markingallocation                   | 1               |
     And the following "mod_assign > submissions" exist:
       | assign          | user     | onlinetext            |
       | Test assignment | student1 | Base test submission. |
