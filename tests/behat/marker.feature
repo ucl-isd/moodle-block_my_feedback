@@ -100,7 +100,7 @@ Feature: As a marker I want to see only submissions to mark where I am the assig
     And I follow "Dashboard"
     Then I should not see "Older assignment"
 
-    When I set the feedback due date for assignment "Older assignment" to "tomorrow"
+    When I set the feedback due date for assignment "Older assignment" to "##tomorrow##"
     And I am on site homepage
     And I follow "Dashboard"
     Then I should see "Older assignment" in the "My feedback" "block"
