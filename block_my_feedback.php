@@ -47,6 +47,12 @@ class block_my_feedback extends block_base {
      */
     private bool $isstudent;
 
+    /** @var int|null User whose marker role assignments are cached. */
+    private ?int $markerassignmentuserid = null;
+
+    /** @var array<int, stdClass> Context IDs where the cached user has a marker role. */
+    private array $markerassignmentcontexts = [];
+
     /**
      * Initialises the block.
      *
@@ -144,38 +150,65 @@ class block_my_feedback extends block_base {
      * @return bool
      */
     private function is_marker(): bool {
-        global $DB, $USER;
+        global $USER;
 
-        if ($roles = $this->markerroles) {
-            // Check if user has editingteacher role on any courses.
-            [$roles, $params] = $DB->get_in_or_equal($roles, SQL_PARAMS_NAMED);
-            $params['userid'] = $USER->id;
-            $sql = "SELECT id
-                FROM {role_assignments}
-                WHERE userid = :userid
-                AND roleid $roles";
-            return $DB->record_exists_sql($sql, $params);
-        } else {
-            return false;
-        }
+        return !empty($this->get_marker_assignment_contexts((int)$USER->id));
     }
 
     /**
      * Return if user has required marker role in given course.
      *
      * @param stdClass $course
+     * @param int $userid
      * @return bool
      */
-    private function is_course_marker(stdClass $course): bool {
-        global $USER;
+    private function is_course_marker(stdClass $course, int $userid): bool {
+        $assignments = $this->get_marker_assignment_contexts($userid);
+        if (!$assignments) {
+            return false;
+        }
 
-        // Check if user has a marker role in the given course.
-        foreach ($this->markerroles as $role) {
-            if (user_has_role_assignment($USER->id, (int)$role, $course->ctxid)) {
+        // As with user_has_role_assignment(), roles inherited from parent contexts count.
+        $context = context::instance_by_id($course->ctxid, IGNORE_MISSING);
+        if (!$context) {
+            return false;
+        }
+        foreach ($context->get_parent_context_ids(true) as $contextid) {
+            if (isset($assignments[$contextid])) {
                 return true;
             }
         }
         return false;
+    }
+
+    /**
+     * Load marker role assignment contexts once per user and block instance.
+     *
+     * @param int $userid
+     * @return array<int, stdClass>
+     */
+    private function get_marker_assignment_contexts(int $userid): array {
+        global $DB;
+
+        if ($this->markerassignmentuserid === $userid) {
+            return $this->markerassignmentcontexts;
+        }
+
+        $this->markerassignmentuserid = $userid;
+        $this->markerassignmentcontexts = [];
+        if (!$this->markerroles) {
+            return [];
+        }
+
+        [$rolesql, $params] = $DB->get_in_or_equal($this->markerroles, SQL_PARAMS_NAMED, 'role');
+        $params['userid'] = $userid;
+        $this->markerassignmentcontexts = $DB->get_records_sql(
+            "SELECT DISTINCT contextid
+               FROM {role_assignments}
+              WHERE userid = :userid AND roleid $rolesql",
+            $params
+        );
+        return $this->markerassignmentcontexts;
     }
 
     /**
@@ -207,87 +240,84 @@ class block_my_feedback extends block_base {
      * @return array|null
      */
     public function fetch_marking(stdClass $user): ?array {
-        // Active user courses.
         $courses = enrol_get_all_users_courses($user->id, true, ['enddate']);
-        // Marking.
-        $marking = [];
-
+        $markercourses = [];
         foreach ($courses as $course) {
-            // Skip hidden or non-current courses.
             if (!$course->visible || !$this->is_course_current($course)) {
                 continue;
             }
+            if (!$this->is_course_marker($course, $user->id)) {
+                continue;
+            }
+            $markercourses[$course->id] = $course;
+        }
+        if (!$markercourses) {
+            return null;
+        }
 
-            // Skip if user has no teacher role in the course.
-            if (!$this->is_course_marker($course)) {
+        $summatives = assess_type::get_cmids_for_courses_by_type(
+            array_keys($markercourses),
+            assess_type::ASSESS_TYPE_SUMMATIVE
+        );
+        $candidates = [];
+        $cmsbycourse = [];
+        $modulehelpers = [];
+        foreach ($summatives as $summative) {
+            $courseid = $summative->courseid;
+            if (!isset($cmsbycourse[$courseid])) {
+                $cmsbycourse[$courseid] = get_fast_modinfo($courseid)->get_cms();
+            }
+            $mod = $cmsbycourse[$courseid][$summative->cmid] ?? null;
+            if (!$mod || !feedback_tracker_helper::is_supported_module($mod->modname)) {
                 continue;
             }
 
-            // Skip if no summative assessments.
-            if (!$summatives = assess_type::get_assess_type_records_by_courseid($course->id, assess_type::ASSESS_TYPE_SUMMATIVE)) {
+            $modulehelpers[$mod->id] ??= module_helper::create($mod);
+            $modulehelper = $modulehelpers[$mod->id];
+            foreach ($modulehelper->get_marking_targets() as $target) {
+                if (!$this->duedate_in_range($target->duedate)) {
+                    continue;
+                }
+                $candidates[] = (object)[
+                    'course' => $markercourses[$courseid],
+                    'mod' => $mod,
+                    'modulehelper' => $modulehelper,
+                    'target' => $target,
+                ];
+            }
+        }
+
+        // Expensive missing-grade counts are only needed until five matching targets are found.
+        usort($candidates, static fn($a, $b): int => $a->target->duedate <=> $b->target->duedate);
+        $marking = [];
+        $courseimages = [];
+        foreach ($candidates as $candidate) {
+            $course = $candidate->course;
+            $mod = $candidate->mod;
+            $target = $candidate->target;
+            $assess = new stdClass();
+            $assess->cmid = $mod->id;
+            $assess->modname = $mod->modname;
+            $assess->name = $mod->name;
+            $assess->coursename = $course->fullname;
+            $assess->partid = $target->partid;
+            if (!$this->add_mod_data($candidate->modulehelper, $assess, $target->duedate)) {
                 continue;
             }
 
-            // Get course mod ids.
-            $modinfo = get_fast_modinfo($course->id);
-            $mods = $modinfo->get_cms();
-            $cmids = array_column($mods, 'id');
-
-            // Loop through assessments for this course.
-            foreach ($summatives as $summative) {
-                // Skip if not a course module or cmid doesn't exist.
-                if ($summative->cmid == 0 || !in_array($summative->cmid, $cmids)) {
-                    continue;
-                }
-
-                // Begin to build mod data for template.
-                $cmid = $summative->cmid;
-                $mod = $modinfo->get_cm($cmid);
-
-                // Skip hidden and unsupported mods.
-                if (!$mod->visible || !feedback_tracker_helper::is_supported_module($mod->modname)) {
-                    continue;
-                }
-
-                // Template.
-                $assess = new stdClass();
-                $assess->cmid = $cmid;
-                $assess->modname = $mod->modname;
-                $assess->name = $mod->name;
-                $assess->coursename = $course->fullname;
-                $assess->url = new moodle_url('/mod/' . $mod->modname . '/view.php', ['id' => $cmid]);
-                // Todo - is this expensive?
-                // If so should we only do it once we know we want to display it?
-                $assess->icon = course_summary_exporter::get_course_image($course);
-
-                $modulehelper = module_helper::create($mod);
-                foreach ($modulehelper->get_marking_targets() as $target) {
-                    $targetassess = clone $assess;
-                    $targetassess->partid = $target->partid;
-
-                    // Check mod target has duedate and requires marking.
-                    if (!$this->add_mod_data($modulehelper, $targetassess, $target->duedate)) {
-                        continue;
-                    }
-
-                    if (!empty($target->partname)) {
-                        $targetassess->name = $mod->name . ' ' . $target->partname;
-                    }
-
-                    $marking[] = $targetassess;
-                }
+            if (!empty($target->partname)) {
+                $assess->name .= ' ' . $target->partname;
+            }
+            $assess->url = new moodle_url('/mod/' . $mod->modname . '/view.php', ['id' => $mod->id]);
+            $courseimages[$course->id] ??= course_summary_exporter::get_course_image($course);
+            $assess->icon = $courseimages[$course->id];
+            $marking[] = $assess;
+            if (count($marking) === 5) {
+                break;
             }
         }
 
-        // Sort and return data.
-        if ($marking) {
-            usort($marking, function ($a, $b) {
-                return $a->unixtimestamp <=> $b->unixtimestamp;
-            });
-
-            return array_slice($marking, 0, 5);
-        }
-        return null;
+        return $marking ?: null;
     }
 
     /**
@@ -382,28 +412,28 @@ class block_my_feedback extends block_base {
 
         // Template data for mustache.
         $feedbacks = [];
-        $i = 0; // We only want to show up to 5 grades - so count the output.
+        $modinfos = [];
+        $modulehelpers = [];
+        $courserecords = [];
+        $courseimages = [];
 
         foreach ($submissions as $f) {
-            $modinfo = get_fast_modinfo($f->course);
-            $cms = $modinfo->get_instances_of($f->modname);
+            $modinfos[$f->course] ??= get_fast_modinfo($f->course);
+            $cms = $modinfos[$f->course]->get_instances_of($f->modname);
             $cm = $cms[$f->instance] ?? null;
 
-            if (!$cm) {
+            if (!$cm || !$cm->uservisible) {
                 continue;
             }
 
-            $modulehelper = module_helper::create($cm);
-            $course = $DB->get_record('course', ['id' => $f->course], '*', MUST_EXIST);
+            $modulehelpers[$cm->id] ??= module_helper::create($cm);
+            $modulehelper = $modulehelpers[$cm->id];
+            $courserecords[$f->course] ??= $DB->get_record('course', ['id' => $f->course], '*', MUST_EXIST);
+            $course = $courserecords[$f->course];
             $feedbackdata = $modulehelper->build_student_feedback_data($f, $course);
 
             if (!$feedbackdata) {
                 continue;
-            }
-
-            // Check if we have enough grades to show.
-            if ($i++ >= 5) {
-                break;
             }
 
             $feedback = new stdClass();
@@ -421,48 +451,73 @@ class block_my_feedback extends block_base {
                 $feedback->icon = $icon;
             } else {
                 // Otherwise return course image.
-                $feedback->icon = course_summary_exporter::get_course_image($course);
+                $courseimages[$f->course] ??= course_summary_exporter::get_course_image($course);
+                $feedback->icon = $courseimages[$f->course];
             }
 
             $feedbacks[] = $feedback;
+            if (count($feedbacks) === 5) {
+                break;
+            }
         }
 
         return $feedbacks ?: null;
     }
 
     /**
-     * Get all submissions from supported module types for a user that are no older than 3 months.
+     * Get candidate submissions from supported module types for a user that are no older than 3 months.
+     * Activity visibility is checked when the feedback is displayed.
      *
      * @param stdClass $user
      * @return array
      * @throws coding_exception
      */
     public function get_submissions($user) {
+        global $DB;
+
         $since = strtotime('-3 month');
         $supported = $this->get_supported_types();
         $courses = enrol_get_all_users_courses($user->id, true, ['enddate']);
-
-        $submissions = [];
-
+        $currentcourses = [];
         foreach ($courses as $course) {
-            if (!$course->visible || !$this->is_course_current($course)) {
-                continue;
-            }
-
-            $modinfo = get_fast_modinfo($course->id);
-            foreach ($modinfo->get_cms() as $cm) {
-                if (!$cm->uservisible || !in_array($cm->modname, $supported)) {
-                    continue;
-                }
-
-                $modulehelper = module_helper::create($cm);
-                $submissions = $submissions + $modulehelper->get_student_feedback_grade_records($user->id, $since);
+            if ($course->visible && $this->is_course_current($course)) {
+                $currentcourses[$course->id] = true;
             }
         }
+        if (!$currentcourses || !$supported) {
+            return [];
+        }
 
-        usort($submissions, fn($a, $b) => $b->lastmodified <=> $a->lastmodified);
-
-        return $submissions;
+        $now = \core\di::get(\core\clock::class)->time();
+        [$modulesql, $moduleparams] = $DB->get_in_or_equal($supported, SQL_PARAMS_NAMED, 'module');
+        [$coursesql, $courseparams] = $DB->get_in_or_equal(array_keys($currentcourses), SQL_PARAMS_NAMED, 'course');
+        $params = $moduleparams + $courseparams + [
+            'userid' => $user->id,
+            'since' => $since,
+            'now1' => $now,
+            'now2' => $now,
+            'now3' => $now,
+        ];
+        // Match module_helper::get_student_feedback_grade_records() in one query for all candidate modules.
+        $sql = "SELECT gg.id AS gradeid,
+                       gi.courseid AS course,
+                       gi.itemmodule AS modname,
+                       gi.iteminstance AS instance,
+                       gi.itemname AS name,
+                       gg.userid AS userid,
+                       gg.usermodified AS grader,
+                       gg.timemodified AS lastmodified
+                  FROM {grade_grades} gg
+                  JOIN {grade_items} gi ON gg.itemid = gi.id
+                 WHERE gg.userid = :userid
+                   AND (gg.finalgrade IS NOT NULL OR gg.feedback IS NOT NULL)
+                   AND gg.timemodified BETWEEN :since AND :now1
+                   AND (gg.hidden = 0 OR (gg.hidden > 1 AND gg.hidden <= :now3))
+                   AND gi.courseid $coursesql
+                   AND gi.itemmodule $modulesql
+                   AND (gi.hidden = 0 OR (gi.hidden > 1 AND gi.hidden <= :now2))
+              ORDER BY gg.timemodified DESC";
+        return $DB->get_records_sql($sql, $params);
     }
 
     /**

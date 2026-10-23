@@ -21,13 +21,13 @@ Feature: Marker view shows a maximum of 5 items ordered by due date
       | my_feedback | system       |           | my-index        | content       | 0             |
 
     And the following "activities" exist:
-      | activity | name     | course | duedate              | assignsubmission_onlinetext_enabled | assignfeedback_comments_enabled | submissiondrafts | assessment_type |
-      | assign   | Assign 1 | C1     | ##tomorrow##         | 1                                  | 1                               | 0                | 1               |
-      | assign   | Assign 2 | C1     | ##tomorrow + 1 day## | 1                                  | 1                               | 0                | 1               |
-      | assign   | Assign 3 | C1     | ##tomorrow + 2 day## | 1                                  | 1                               | 0                | 1               |
-      | assign   | Assign 4 | C1     | ##tomorrow + 3 day## | 1                                  | 1                               | 0                | 1               |
-      | assign   | Assign 5 | C1     | ##tomorrow + 4 day## | 1                                  | 1                               | 0                | 1               |
-      | assign   | Assign 6 | C1     | ##tomorrow + 5 day## | 1                                  | 1                               | 0                | 1               |
+      | activity | name     | course | duedate              | assignsubmission_onlinetext_enabled | assignfeedback_comments_enabled | markingworkflow | markingallocation | submissiondrafts | assessment_type |
+      | assign   | Assign 1 | C1     | ##tomorrow##         | 1                                  | 1                               | 1               | 1                 | 0                | 1               |
+      | assign   | Assign 2 | C1     | ##tomorrow + 1 day## | 1                                  | 1                               | 1               | 1                 | 0                | 1               |
+      | assign   | Assign 3 | C1     | ##tomorrow + 2 day## | 1                                  | 1                               | 1               | 1                 | 0                | 1               |
+      | assign   | Assign 4 | C1     | ##tomorrow + 3 day## | 1                                  | 1                               | 1               | 1                 | 0                | 1               |
+      | assign   | Assign 5 | C1     | ##tomorrow + 4 day## | 1                                  | 1                               | 1               | 1                 | 0                | 1               |
+      | assign   | Assign 6 | C1     | ##tomorrow + 5 day## | 1                                  | 1                               | 1               | 1                 | 0                | 1               |
     And the following "mod_assign > submissions" exist:
       | assign          | user     | onlinetext         |
       | Assign 1        | student1 | Submission 1 text. |
@@ -36,6 +36,24 @@ Feature: Marker view shows a maximum of 5 items ordered by due date
       | Assign 4        | student1 | Submission 4 text. |
       | Assign 5        | student1 | Submission 5 text. |
       | Assign 6        | student1 | Submission 6 text. |
+    And I allocate the following markers for assignment "Assign 1":
+      | Student  | Marker   |
+      | student1 | teacher1 |
+    And I allocate the following markers for assignment "Assign 2":
+      | Student  | Marker   |
+      | student1 | teacher1 |
+    And I allocate the following markers for assignment "Assign 3":
+      | Student  | Marker   |
+      | student1 | teacher1 |
+    And I allocate the following markers for assignment "Assign 4":
+      | Student  | Marker   |
+      | student1 | teacher1 |
+    And I allocate the following markers for assignment "Assign 5":
+      | Student  | Marker   |
+      | student1 | teacher1 |
+    And I allocate the following markers for assignment "Assign 6":
+      | Student  | Marker   |
+      | student1 | teacher1 |
 
     And I am logged in as "teacher1"
     And I follow "Dashboard"
