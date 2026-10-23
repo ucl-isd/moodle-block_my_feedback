@@ -85,20 +85,15 @@ class behat_block_my_feedback extends behat_base {
      *
      * @Given /^I set the feedback due date for assignment "(?P<assignname>[^"]*)" to "(?P<date>[^"]*)"$/
      * @param string $assignname
-     * @param string $date
+     * @param int $date Moodle Behat transforms date tokens such as ##tomorrow## to a timestamp.
      * @return void
      */
-    public function set_assignment_feedback_due_date(string $assignname, string $date): void {
+    public function set_assignment_feedback_due_date(string $assignname, int $date): void {
         global $DB;
 
         $activity = $this->get_activity_by_name($assignname);
         if ($activity->modname !== 'assign') {
             throw new \coding_exception('Activity is not an assignment: ' . $assignname);
-        }
-
-        $feedbackduedate = strtotime($date);
-        if ($feedbackduedate === false) {
-            throw new \coding_exception('Invalid feedback due date: ' . $date);
         }
 
         $gradeitemid = $DB->get_field('grade_items', 'id', [
@@ -108,12 +103,12 @@ class behat_block_my_feedback extends behat_base {
         ], MUST_EXIST);
         $record = $DB->get_record('report_feedback_tracker', ['gradeitem' => $gradeitemid, 'partid' => null]);
         if ($record) {
-            $DB->set_field('report_feedback_tracker', 'feedbackduedate', $feedbackduedate, ['id' => $record->id]);
+            $DB->set_field('report_feedback_tracker', 'feedbackduedate', $date, ['id' => $record->id]);
         } else {
             $DB->insert_record('report_feedback_tracker', (object) [
                 'gradeitem' => $gradeitemid,
                 'partid' => null,
-                'feedbackduedate' => $feedbackduedate,
+                'feedbackduedate' => $date,
             ]);
         }
     }

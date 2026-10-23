@@ -55,7 +55,7 @@ Feature: Marker view shows a maximum of 5 items ordered by feedback due date
       | Student  | Marker   |
       | student1 | teacher1 |
     # Assign 6 has the latest submission date, but its manual feedback deadline is earliest.
-    And I set the feedback due date for assignment "Assign 6" to "tomorrow"
+    And I set the feedback due date for assignment "Assign 6" to "##tomorrow##"
 
     And I am logged in as "teacher1"
     And I follow "Dashboard"
