@@ -234,6 +234,7 @@ class block_my_feedback extends block_base {
             $mods = $modinfo->get_cms();
             $cmids = array_column($mods, 'id');
             $gradeitemids = null;
+            $targets = [];
 
             // Loop through assessments for this course.
             foreach ($summatives as $summative) {
@@ -286,25 +287,30 @@ class block_my_feedback extends block_base {
                 foreach ($modulehelper->get_marking_targets() as $target) {
                     $targetassess = clone $assess;
                     $targetassess->partid = $target->partid;
-
-                    $submissionduedate = (int) $target->duedate;
-                    $feedbackduedate = $this->get_feedback_due_date(
-                        $gradeitemid,
-                        $course->id,
-                        $target->partid,
-                        $submissionduedate
-                    );
-
-                    // Check the target has a feedback due date and requires marking.
-                    if (!$this->add_mod_data($modulehelper, $targetassess, $feedbackduedate, $submissionduedate)) {
-                        continue;
-                    }
-
                     if (!empty($target->partname)) {
                         $targetassess->name = $mod->name . ' ' . $target->partname;
                     }
+                    $targets[] = (object) [
+                        'gradeitem' => (object) ['id' => $gradeitemid, 'courseid' => $course->id],
+                        'duedate' => (int) $target->duedate,
+                        'partid' => $target->partid,
+                        'modulehelper' => $modulehelper,
+                        'assess' => $targetassess,
+                    ];
+                }
+            }
 
-                    $marking[] = $targetassess;
+            // Resolve all stored overrides for this course in one Feedback Tracker lookup.
+            $feedbackduedates = feedback_tracker_helper::get_effective_feedbackduedates($targets);
+            foreach ($targets as $index => $target) {
+                $showtarget = $this->add_mod_data(
+                    $target->modulehelper,
+                    $target->assess,
+                    $feedbackduedates[$index],
+                    $target->duedate
+                );
+                if ($showtarget) {
+                    $marking[] = $target->assess;
                 }
             }
         }
@@ -318,29 +324,6 @@ class block_my_feedback extends block_base {
             return array_slice($marking, 0, 5);
         }
         return null;
-    }
-
-    /**
-     * Get the feedback due date for a marking target.
-     *
-     * @param int $gradeitemid
-     * @param int $courseid
-     * @param int|null $partid
-     * @param int $submissionduedate
-     * @return int
-     */
-    private function get_feedback_due_date(int $gradeitemid, int $courseid, ?int $partid, int $submissionduedate): int {
-        if (!$gradeitemid) {
-            // Some supported modules have no grade item; they can still use the default deadline.
-            return feedback_tracker_helper::get_feedbackduedate((object) ['courseid' => $courseid], $submissionduedate);
-        }
-
-        $gradeitem = (object) [
-            'id' => $gradeitemid,
-            'courseid' => $courseid,
-        ];
-
-        return feedback_tracker_helper::get_effective_feedbackduedate($gradeitem, $submissionduedate, $partid);
     }
 
     /**
