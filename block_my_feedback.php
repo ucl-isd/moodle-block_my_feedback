@@ -233,7 +233,18 @@ class block_my_feedback extends block_base {
             $modinfo = get_fast_modinfo($course->id);
             $mods = $modinfo->get_cms();
             $cmids = array_column($mods, 'id');
-            $gradeitemids = null;
+
+            // Course-module assess-type rows store gradeitemid 0, so resolve actual grade items.
+            // Their IDs are needed for feedback-date override lookups on all modules.
+            $gradeitems = $DB->get_records('grade_items', [
+                'courseid' => $course->id,
+                'itemtype' => 'mod',
+                'itemnumber' => 0,
+            ], '', 'id,itemmodule,iteminstance');
+            $gradeitemids = [];
+            foreach ($gradeitems as $gradeitem) {
+                $gradeitemids[$gradeitem->itemmodule][$gradeitem->iteminstance] = (int) $gradeitem->id;
+            }
             $targets = [];
 
             // Loop through assessments for this course.
@@ -263,19 +274,6 @@ class block_my_feedback extends block_base {
                 // If so should we only do it once we know we want to display it?
                 $assess->icon = course_summary_exporter::get_course_image($course);
 
-                if ($gradeitemids === null) {
-                    // Course-module assess-type rows store gradeitemid 0, so resolve actual grade items.
-                    // Their IDs are needed for feedback-date override lookups on all modules.
-                    $gradeitemids = [];
-                    $gradeitems = $DB->get_records('grade_items', [
-                        'courseid' => $course->id,
-                        'itemtype' => 'mod',
-                        'itemnumber' => 0,
-                    ], '', 'id,itemmodule,iteminstance');
-                    foreach ($gradeitems as $gradeitem) {
-                        $gradeitemids[$gradeitem->itemmodule][$gradeitem->iteminstance] = (int) $gradeitem->id;
-                    }
-                }
                 $gradeitemid = $gradeitemids[$mod->modname][$mod->instance] ?? 0;
                 if (!$gradeitemid && $mod->modname === 'assign') {
                     // Exclude assignments without a grade item from the marker list.
