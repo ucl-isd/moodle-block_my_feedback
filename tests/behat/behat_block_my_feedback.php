@@ -81,6 +81,39 @@ class behat_block_my_feedback extends behat_base {
     }
 
     /**
+     * Set a manual Feedback Tracker deadline for an assignment.
+     *
+     * @Given /^I set the feedback due date for assignment "(?P<assignname>[^"]*)" to "(?P<date>[^"]*)"$/
+     * @param string $assignname
+     * @param int $date Moodle Behat transforms date tokens such as ##tomorrow## to a timestamp.
+     * @return void
+     */
+    public function set_assignment_feedback_due_date(string $assignname, int $date): void {
+        global $DB;
+
+        $activity = $this->get_activity_by_name($assignname);
+        if ($activity->modname !== 'assign') {
+            throw new \coding_exception('Activity is not an assignment: ' . $assignname);
+        }
+
+        $gradeitemid = $DB->get_field('grade_items', 'id', [
+            'itemtype' => 'mod',
+            'itemmodule' => 'assign',
+            'iteminstance' => $activity->instanceid,
+        ], MUST_EXIST);
+        $record = $DB->get_record('report_feedback_tracker', ['gradeitem' => $gradeitemid, 'partid' => null]);
+        if ($record) {
+            $DB->set_field('report_feedback_tracker', 'feedbackduedate', $date, ['id' => $record->id]);
+        } else {
+            $DB->insert_record('report_feedback_tracker', (object) [
+                'gradeitem' => $gradeitemid,
+                'partid' => null,
+                'feedbackduedate' => $date,
+            ]);
+        }
+    }
+
+    /**
      * Create finished quiz attempts for users.
      *
      * @Given /^the following quiz attempts exist:$/
