@@ -207,8 +207,6 @@ class block_my_feedback extends block_base {
      * @return array|null
      */
     public function fetch_marking(stdClass $user): ?array {
-        global $DB;
-
         // Active user courses.
         $courses = enrol_get_all_users_courses($user->id, true, ['enddate']);
         // Marking.
@@ -234,17 +232,8 @@ class block_my_feedback extends block_base {
             $mods = $modinfo->get_cms();
             $cmids = array_column($mods, 'id');
 
-            // Course-module assess-type rows store gradeitemid 0, so resolve actual grade items.
-            // Their IDs are needed for feedback-date override lookups on all modules.
-            $gradeitems = $DB->get_records('grade_items', [
-                'courseid' => $course->id,
-                'itemtype' => 'mod',
-                'itemnumber' => 0,
-            ], '', 'id,itemmodule,iteminstance');
-            $gradeitemids = [];
-            foreach ($gradeitems as $gradeitem) {
-                $gradeitemids[$gradeitem->itemmodule][$gradeitem->iteminstance] = (int) $gradeitem->id;
-            }
+            // Get grade items with their optional Feedback Tracker due-date overrides.
+            $gradeitems = feedback_tracker_helper::get_gradeitems_with_overrides($course->id);
             $targets = [];
 
             // Loop through assessments for this course.
@@ -274,8 +263,8 @@ class block_my_feedback extends block_base {
                 // If so should we only do it once we know we want to display it?
                 $assess->icon = course_summary_exporter::get_course_image($course);
 
-                $gradeitemid = $gradeitemids[$mod->modname][$mod->instance] ?? 0;
-                if (!$gradeitemid && $mod->modname === 'assign') {
+                $modulegradeitem = $gradeitems["$mod->modname-$mod->instance-"] ?? null;
+                if (empty($modulegradeitem->gradeitemid) && $mod->modname === 'assign') {
                     // Exclude assignments without a grade item from the marker list.
                     continue;
                 }
@@ -287,9 +276,27 @@ class block_my_feedback extends block_base {
                     if (!empty($target->partname)) {
                         $targetassess->name = $mod->name . ' ' . $target->partname;
                     }
+                    $gradeitem = $gradeitems["$mod->modname-$mod->instance-$target->partid"]
+                        ?? $modulegradeitem
+                        ?? (object) ['gradeitemid' => 0];
+                    $targetgradeitem = (object) [
+                        'id' => (int) ($gradeitem->gradeitemid ?? 0),
+                        'courseid' => $course->id,
+                    ];
+                    if (!empty($gradeitem->feedbackduedate)) {
+                        $targetgradeitem->feedbackduedate = (int) $gradeitem->feedbackduedate;
+                    }
+                    if (!property_exists($course, 'academicyear')) {
+                        $course->academicyear = feedback_tracker_helper::get_academic_year($course->id);
+                    }
                     $targets[] = (object) [
-                        'gradeitem' => (object) ['id' => $gradeitemid, 'courseid' => $course->id],
+                        'gradeitem' => $targetgradeitem,
                         'duedate' => (int) $target->duedate,
+                        'feedbackduedate' => feedback_tracker_helper::get_feedbackduedate(
+                            $targetgradeitem,
+                            (int) $target->duedate,
+                            $course->academicyear
+                        ),
                         'partid' => $target->partid,
                         'modulehelper' => $modulehelper,
                         'assess' => $targetassess,
@@ -297,13 +304,11 @@ class block_my_feedback extends block_base {
                 }
             }
 
-            // Resolve all stored overrides for this course in one Feedback Tracker lookup.
-            $feedbackduedates = feedback_tracker_helper::get_effective_feedbackduedates($targets);
-            foreach ($targets as $index => $target) {
+            foreach ($targets as $target) {
                 $showtarget = $this->add_mod_data(
                     $target->modulehelper,
                     $target->assess,
-                    $feedbackduedates[$index],
+                    $target->feedbackduedate,
                     $target->duedate
                 );
                 if ($showtarget) {
