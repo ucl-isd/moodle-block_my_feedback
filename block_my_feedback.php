@@ -276,9 +276,10 @@ class block_my_feedback extends block_base {
                     if (!empty($target->partname)) {
                         $targetassess->name = $mod->name . ' ' . $target->partname;
                     }
-                    $gradeitem = $gradeitems["$mod->modname-$mod->instance-$target->partid"]
-                        ?? $modulegradeitem
-                        ?? (object) ['gradeitemid' => 0];
+                    // Match the exact part override. Module-level overrides must not leak to other parts.
+                    $targetpartid = $target->partid ?: '';
+                    $targetkey = "$mod->modname-$mod->instance-$targetpartid";
+                    $gradeitem = $gradeitems[$targetkey] ?? (object) ['gradeitemid' => 0];
                     $targetgradeitem = (object) [
                         'id' => (int) ($gradeitem->gradeitemid ?? 0),
                         'courseid' => $course->id,
