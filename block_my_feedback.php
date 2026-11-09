@@ -271,6 +271,10 @@ class block_my_feedback extends block_base {
 
                 $modulehelper = module_helper::create($mod);
                 foreach ($modulehelper->get_marking_targets() as $target) {
+                    if ($target->duedate === 0) {
+                        continue;
+                    }
+
                     $targetassess = clone $assess;
                     $targetassess->partid = $target->partid;
                     if (!empty($target->partname)) {
