@@ -101,8 +101,7 @@ Feature: As a marker I want to see only submissions to mark where I am the assig
     Then I should not see "Older assignment"
 
     When I set the feedback due date for assignment "Older assignment" to "##tomorrow##"
-    And I am on site homepage
-    And I follow "Dashboard"
+    And I reload the page
     Then I should see "Older assignment" in the "My feedback" "block"
 
   Scenario: A Teacher should not see upcoming markings for submission from students where others are assigned as marker.
