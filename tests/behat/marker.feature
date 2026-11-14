@@ -83,7 +83,7 @@ Feature: As a marker I want to see only submissions to mark where I am the assig
       | activity                            | assign           |
       | name                                | Older assignment |
       | course                              | C1               |
-      | duedate                             | ##3 months ago## |
+      | duedate                             | ##4 months ago## |
       | assignsubmission_onlinetext_enabled | 1                |
       | assignfeedback_comments_enabled     | 1                |
       | markingworkflow                     | 1                |
