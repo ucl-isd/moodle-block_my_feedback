@@ -1,9 +1,9 @@
 @block @block_my_feedback
-Feature: Setting due date to over 2 months in the past hides the activity
+Feature: Setting due date to over 3 months in the past hides the activity
   Setting due date to over 1 month in the future hides the activity
   Hiding the activity hides it from marker view
 
-  Scenario Outline: Setting due date outside of 2 month in the past or 1 month in the future hides activity.
+  Scenario Outline: Setting due date outside of 3 months in the past or 1 month in the future hides activity.
     Given the following "courses" exist:
       | fullname | shortname |
       | Course 1 | C1        |
@@ -27,10 +27,15 @@ Feature: Setting due date to over 2 months in the past hides the activity
       | assignfeedback_comments_enabled     | 1               |
       | submissiondrafts                    | 0               |
       | assessment_type                     | 1               |
+      | markingworkflow                     | 1               |
+      | markingallocation                   | 1               |
       | visible                             | <visible>       |
     And the following "mod_assign > submissions" exist:
       | assign          | user     | onlinetext            |
       | Test assignment | student1 | Base test submission. |
+    And I allocate the following markers for assignment "Test assignment":
+      | Student  | Marker   |
+      | student1 | teacher1 |
     And the following "blocks" exist:
       | blockname   | contextlevel | reference | pagetypepattern | defaultregion | defaultweight |
       | my_feedback | system       |           | my-index        | content       | 0             |
@@ -41,7 +46,7 @@ Feature: Setting due date to over 2 months in the past hides the activity
     Examples:
       | duedate           | visible | seenotsee |
       | ##1 months ago##  | 1       | see       |
-      | ##3 months ago##  | 1       | not see   |
+      | ##4 months ago##  | 1       | not see   |
       | ##+2 months##     | 1       | not see   |
       | ##tomorrow ##     | 1       | see       |
       | ##tomorrow ##     | 0       | not see   |

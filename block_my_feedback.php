@@ -211,7 +211,6 @@ class block_my_feedback extends block_base {
         $courses = enrol_get_all_users_courses($user->id, true, ['enddate']);
         // Marking.
         $marking = [];
-
         foreach ($courses as $course) {
             // Skip hidden or non-current courses.
             if (!$course->visible || !$this->is_course_current($course)) {
@@ -232,6 +231,10 @@ class block_my_feedback extends block_base {
             $modinfo = get_fast_modinfo($course->id);
             $mods = $modinfo->get_cms();
             $cmids = array_column($mods, 'id');
+
+            // Get grade items with their optional Feedback Tracker due-date overrides.
+            $gradeitems = feedback_tracker_helper::get_gradeitems_with_overrides($course->id);
+            $targets = [];
 
             // Loop through assessments for this course.
             foreach ($summatives as $summative) {
@@ -260,21 +263,61 @@ class block_my_feedback extends block_base {
                 // If so should we only do it once we know we want to display it?
                 $assess->icon = course_summary_exporter::get_course_image($course);
 
+                $modulegradeitem = $gradeitems["$mod->modname-$mod->instance-"] ?? null;
+                if (empty($modulegradeitem->gradeitemid) && $mod->modname === 'assign') {
+                    // Exclude assignments without a grade item from the marker list.
+                    continue;
+                }
+
                 $modulehelper = module_helper::create($mod);
                 foreach ($modulehelper->get_marking_targets() as $target) {
-                    $targetassess = clone $assess;
-                    $targetassess->partid = $target->partid;
-
-                    // Check mod target has duedate and requires marking.
-                    if (!$this->add_mod_data($modulehelper, $targetassess, $target->duedate)) {
+                    if ($target->duedate === 0) {
                         continue;
                     }
 
+                    $targetassess = clone $assess;
+                    $targetassess->partid = $target->partid;
                     if (!empty($target->partname)) {
                         $targetassess->name = $mod->name . ' ' . $target->partname;
                     }
+                    // Match the exact part override. Module-level overrides must not leak to other parts.
+                    $targetpartid = $target->partid ?: '';
+                    $targetkey = "$mod->modname-$mod->instance-$targetpartid";
+                    $gradeitem = $gradeitems[$targetkey] ?? (object) ['gradeitemid' => 0];
+                    $targetgradeitem = (object) [
+                        'id' => (int) ($gradeitem->gradeitemid ?? 0),
+                        'courseid' => $course->id,
+                    ];
+                    if (!empty($gradeitem->feedbackduedate)) {
+                        $targetgradeitem->feedbackduedate = (int) $gradeitem->feedbackduedate;
+                    }
+                    if (!property_exists($course, 'academicyear')) {
+                        $course->academicyear = feedback_tracker_helper::get_academic_year($course->id);
+                    }
+                    $targets[] = (object) [
+                        'gradeitem' => $targetgradeitem,
+                        'duedate' => (int) $target->duedate,
+                        'feedbackduedate' => feedback_tracker_helper::get_feedbackduedate(
+                            $targetgradeitem,
+                            (int) $target->duedate,
+                            $course->academicyear
+                        ),
+                        'partid' => $target->partid,
+                        'modulehelper' => $modulehelper,
+                        'assess' => $targetassess,
+                    ];
+                }
+            }
 
-                    $marking[] = $targetassess;
+            foreach ($targets as $target) {
+                $showtarget = $this->add_mod_data(
+                    $target->modulehelper,
+                    $target->assess,
+                    $target->feedbackduedate,
+                    $target->duedate
+                );
+                if ($showtarget) {
+                    $marking[] = $target->assess;
                 }
             }
         }
@@ -291,16 +334,25 @@ class block_my_feedback extends block_base {
     }
 
     /**
-     * Return mod target data - due date & require marking.
+     * Return mod target data - feedback due date & required marking.
      *
      * @param module_helper $modulehelper
      * @param stdClass $assess
-     * @param int $duedate
+     * @param int $feedbackduedate
+     * @param int $submissionduedate Preserve the existing submission-date visibility window.
      * @return bool
      */
-    public function add_mod_data(module_helper $modulehelper, stdClass $assess, int $duedate): bool {
-        // Check that mod has a due date, and the due date is in range.
-        if (($duedate === 0) || !$this->duedate_in_range($duedate)) {
+    public function add_mod_data(
+        module_helper $modulehelper,
+        stdClass $assess,
+        int $feedbackduedate,
+        int $submissionduedate = 0
+    ): bool {
+        // Keep the old submission-date window, and include items whose feedback deadline is in range.
+        if (
+            $feedbackduedate === 0 ||
+            (!$this->duedate_in_range($submissionduedate) && !$this->duedate_in_range($feedbackduedate))
+        ) {
             return false;
         }
 
@@ -311,8 +363,8 @@ class block_my_feedback extends block_base {
         }
 
         // Add date for sorting and human-readable output.
-        $assess->unixtimestamp = $duedate;
-        $assess->duedate = date('jS M', $duedate);
+        $assess->unixtimestamp = $feedbackduedate;
+        $assess->duedate = date('jS M', $feedbackduedate);
 
         $assess->markingurl = $modulehelper->get_markingurl();
 
