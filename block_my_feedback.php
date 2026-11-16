@@ -308,8 +308,10 @@ class block_my_feedback extends block_base {
                     (int) $target->duedate,
                     $academicyearbycourse[$courseid]
                 );
-                if (!$this->duedate_in_range((int) $target->duedate)
-                        && !$this->duedate_in_range($feedbackduedate)) {
+                if (
+                    !$this->duedate_in_range((int) $target->duedate)
+                        && !$this->duedate_in_range($feedbackduedate)
+                ) {
                     continue;
                 }
 
@@ -338,12 +340,14 @@ class block_my_feedback extends block_base {
             $assess->name = $mod->name;
             $assess->coursename = $course->fullname;
             $assess->partid = $target->partid;
-            if (!$this->add_mod_data(
+            if (
+                !$this->add_mod_data(
                     $candidate->modulehelper,
                     $assess,
                     $candidate->feedbackduedate,
                     $candidate->submissionduedate
-            )) {
+                )
+            ) {
                 continue;
             }
 
