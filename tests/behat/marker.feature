@@ -1,9 +1,9 @@
 @block @block_my_feedback
-Feature: As a marker I want to see only submissions to mark where I am the assigned marker.
+Feature: As a marker I want to see submissions assigned to me or awaiting allocation.
 
   In order to manage submissions more easily
   As a teacher
-  I need to view submissions allocated to markers.
+  I need to view submissions allocated to me or awaiting allocation.
 
   Background:
     Given the following "courses" exist:
@@ -49,6 +49,14 @@ Feature: As a marker I want to see only submissions to mark where I am the assig
     And the following "blocks" exist:
       | blockname      | contextlevel | reference | pagetypepattern | defaultregion | defaultweight |
       | my_feedback    | system       |           | my-index        | content       | 0             |
+
+  Scenario: A teacher sees upcoming markings awaiting allocation.
+    Given I am logged in as "teacher1"
+    And I am on site homepage
+    And I follow "Dashboard"
+    Then I should see "Marking for Teacher"
+    And I should see "Test assignment"
+    And I should see "3 to mark"
 
   Scenario: teacher1 should see 2 allocated submissions.
     Given I allocate the following markers for assignment "Test assignment":
@@ -103,6 +111,17 @@ Feature: As a marker I want to see only submissions to mark where I am the assig
     When I set the feedback due date for assignment "Older assignment" to "##tomorrow##"
     And I reload the page
     Then I should see "Older assignment" in the "My feedback" "block"
+
+  Scenario: Unallocated submissions remain visible when other submissions have markers.
+    Given I allocate the following markers for assignment "Test assignment":
+      | Student   | Marker    |
+      | student1  | teacher1  |
+      | student2  | teacher2  |
+
+    And I am logged in as "teacher1"
+    And I am on site homepage
+    And I follow "Dashboard"
+    Then I should see "2 to mark"
 
   Scenario: A Teacher should not see upcoming markings for submission from students where others are assigned as marker.
     Given I allocate the following markers for assignment "Test assignment":
