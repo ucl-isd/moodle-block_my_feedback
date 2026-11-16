@@ -1,9 +1,9 @@
 @block @block_my_feedback
-Feature: As a marker I want to see only submissions to mark where I am the assigned marker.
+Feature: As a marker I want to see submissions assigned to me or awaiting allocation.
 
   In order to manage submissions more easily
   As a teacher
-  I need to view submissions allocated to markers.
+  I need to view submissions allocated to me or awaiting allocation.
 
   Background:
     Given the following "courses" exist:
@@ -50,11 +50,13 @@ Feature: As a marker I want to see only submissions to mark where I am the assig
       | blockname      | contextlevel | reference | pagetypepattern | defaultregion | defaultweight |
       | my_feedback    | system       |           | my-index        | content       | 0             |
 
-  Scenario: A teacher should not see upcoming markings without an assigned marker.
+  Scenario: A teacher sees upcoming markings awaiting allocation.
     Given I am logged in as "teacher1"
     And I am on site homepage
     And I follow "Dashboard"
-    Then I should not see "Marking for Teacher"
+    Then I should see "Marking for Teacher"
+    And I should see "Test assignment"
+    And I should see "3 to mark"
 
   Scenario: teacher1 should see 2 allocated submissions.
     Given I allocate the following markers for assignment "Test assignment":
